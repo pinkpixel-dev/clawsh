@@ -10,10 +10,7 @@ use crate::persist::{self, Saved};
 impl App {
     /// Brings back the last session's workspaces, each tab resuming its own
     /// conversation. Folders that no longer exist are skipped.
-    pub(super) fn restore(&mut self) -> Result<()> {
-        let Some(saved) = self.session_file.as_deref().and_then(persist::load) else {
-            return Ok(());
-        };
+    pub(super) fn restore(&mut self, saved: &Saved) -> Result<()> {
         // Saved workspace index -> where it landed, for restoring focus.
         let mut placed = Vec::with_capacity(saved.workspaces.len());
         for ws in &saved.workspaces {
@@ -65,7 +62,7 @@ impl App {
         let Some(path) = self.session_file.as_deref() else {
             return;
         };
-        let saved = Saved::from_spaces(&self.spaces, |p| p.session.clone());
+        let saved = Saved::from_spaces(&self.spaces, self.notifications, |p| p.session.clone());
         if self.last_saved.as_ref() == Some(&saved) {
             return;
         }

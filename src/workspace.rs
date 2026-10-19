@@ -119,6 +119,14 @@ impl<T> Workspaces<T> {
         self.list.iter_mut().flat_map(|ws| ws.tabs.iter_mut())
     }
 
+    /// Like `find_mut`, but also gives the name of the tab's workspace.
+    pub fn find_with_workspace_mut(&mut self, pred: impl Fn(&T) -> bool) -> Option<(String, &mut T)> {
+        self.list.iter_mut().find_map(|ws| {
+            let name = ws.name.clone();
+            ws.tabs.iter_mut().find(|t| pred(t)).map(|t| (name, t))
+        })
+    }
+
     pub fn find_mut(&mut self, pred: impl Fn(&T) -> bool) -> Option<&mut T> {
         self.tabs_mut().find(|t| pred(t))
     }

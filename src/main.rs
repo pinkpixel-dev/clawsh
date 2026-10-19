@@ -2,6 +2,8 @@ mod app;
 mod event;
 mod graphics;
 mod host;
+mod host_colors;
+mod notify;
 mod pane;
 mod persist;
 mod shm;
@@ -34,7 +36,9 @@ fn main() -> Result<()> {
     };
 
     let mut term = ratatui::init();
-    let result = host::HostGuard::enter().and_then(|_guard| app::run(&mut term, launch));
+    // Ask for the terminal's colors before anything else reads stdin.
+    let colors = host_colors::query();
+    let result = host::HostGuard::enter().and_then(|_guard| app::run(&mut term, launch, colors));
     ratatui::restore();
     result
 }

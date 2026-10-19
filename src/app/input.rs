@@ -24,6 +24,7 @@ pub(super) enum Action {
     SelectTab(usize),
     CycleWorkspace(isize),
     ToggleSidebar,
+    ToggleNotifications,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -43,6 +44,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('j') | KeyCode::Down => Action::CycleWorkspace(1),
         KeyCode::Char('k') | KeyCode::Up => Action::CycleWorkspace(-1),
         KeyCode::Char('s') => Action::ToggleSidebar,
+        KeyCode::Char('m') => Action::ToggleNotifications,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
@@ -116,6 +118,7 @@ impl App {
             }
             Action::CycleWorkspace(d) => self.switch(|s| s.cycle_workspace(d))?,
             Action::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
+            Action::ToggleNotifications => self.notifications = !self.notifications,
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
                 if let Some(pane) = self.spaces.active_tab_mut() {

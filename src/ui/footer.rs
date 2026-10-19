@@ -16,6 +16,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
         }
     }
 
+    let notify = if view.notifications { "mute" } else { "unmute" };
     let hints: &[(&str, &str)] = match view.mode {
         Mode::Normal => &[("ctrl+b", "commands")],
         Mode::Prefix => &[
@@ -25,6 +26,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
             ("n/p", "tabs"),
             ("j/k", "spaces"),
             ("s", "sidebar"),
+            ("m", notify),
             ("q", "quit"),
             ("esc", "cancel"),
         ],

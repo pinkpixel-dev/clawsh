@@ -192,6 +192,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "crossterm",
+ "libc",
  "libghostty-vt",
  "png",
  "portable-pty",

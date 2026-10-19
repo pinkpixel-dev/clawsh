@@ -168,6 +168,7 @@ mod tests {
             mode: Mode::Normal,
             sidebar_scroll: scroll,
             follow_active: follow,
+            notifications: true,
         }
     }
 

@@ -41,6 +41,13 @@
 - Saved to `~/.local/state/clawsh/session.json` whenever something changes
 - `clawsh --fresh` starts clean once
 
+### 🔔 Notifications
+- Desktop notification when a background tab needs input, finishes, or fails
+- `ctrl+b m` turns them off or on, and the choice is remembered
+
+### 🌗 Light and dark
+- Claw$h reads the terminal's real colors at startup and passes them to every tab, so Claude picks the right light or dark theme
+
 ### 📋 Clipboard
 - Copying from Claude (OSC 52) now reaches your real clipboard; clipboard reads stay blocked
 

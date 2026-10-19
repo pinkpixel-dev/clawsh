@@ -66,6 +66,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `1` to `9` | Jump to a tab |
 | `j` / `k` or `↓` / `↑` | Next / previous workspace |
 | `s` | Hide or show the sidebar |
+| `m` | Turn desktop notifications off or back on |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
@@ -84,6 +85,8 @@ Every tab has a little status icon in the sidebar and the tab bar, and each work
 
 `●` and `✗` clear once you switch to that tab or type in it.
 
+When a tab you're *not* looking at starts waiting on you, finishes, or fails, Claw$h also sends a desktop notification (through `notify-send`), like "Claw$h · quota: fix auth is waiting on you". Press `ctrl+b` then `m` to turn them off or back on. That choice is remembered, even across `--fresh`.
+
 This works through Claude Code hooks. Claw$h starts each Claude tab with `claude --settings '…'`, which adds a few hooks that run `clawsh __hook` and report back over a local socket. Those hooks are added next to your own hooks, not instead of them, and nothing in your Claude config gets changed. If you set `CLAWSH_PROGRAM` to something other than `claude`, the hooks are left off.
 
 ### Usage limits
@@ -93,6 +96,10 @@ The bottom of the sidebar shows your Claude 5-hour and weekly windows: a bar and
 Claw$h reads your Claude Code login from `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`) and asks Anthropic's usage endpoint, the same one Claude Code uses for its own usage screen. Nothing gets written anywhere. It refreshes every 3 minutes, and sooner after a tab finishes a turn, but never more than once a minute. If it can't get a reading you'll see a short reason instead, like `usage: offline` or `usage: token expired, open Claude`.
 
 Usage only shows when Claw$h is running Claude, so it stays out of the way with `CLAWSH_PROGRAM`.
+
+### Light and dark terminals
+
+When Claw$h starts, it asks your terminal for its real text and background colors and passes them on to every tab. So when Claude checks whether your terminal is light or dark to pick its theme, it gets the right answer. Claw$h's own sidebar and bars stay dark for now.
 
 ### Copying from Claude
 

@@ -128,6 +128,8 @@ pub struct View<'a> {
     pub sidebar_scroll: usize,
     /// The active tab just changed, so the sidebar should scroll to show it.
     pub follow_active: bool,
+    /// Desktop notifications on or off, for the footer's prefix hints.
+    pub notifications: bool,
 }
 
 /// Draws everything except the pane. Returns the click map and, while the

@@ -14,7 +14,9 @@ use ratatui::layout::Rect;
 use crate::event::{self, AppEvent};
 use crate::graphics::ImageBridge;
 use crate::host::{self, CellPx};
+use crate::host_colors::HostColors;
 use crate::pane::{CursorState, Pane};
+use crate::notify;
 use crate::persist::{self, Saved};
 use crate::picker::Picker;
 use crate::status::{self, Status, StatusServer};
@@ -55,11 +57,15 @@ struct App {
     /// Where the session is saved; only set when the program is Claude, so
     /// test runs with another program never touch it.
     session_file: Option<PathBuf>,
+    /// Desktop notifications for background tabs (`ctrl+b m`).
+    notifications: bool,
     last_saved: Option<Saved>,
     started: Instant,
     launch_dir: PathBuf,
     next_id: usize,
     cell: CellPx,
+    /// The host terminal's colors, handed to every pane.
+    colors: HostColors,
     /// Where panes are drawn; every pane is kept at this size.
     pane_area: Rect,
     show_sidebar: bool,
@@ -74,7 +80,7 @@ struct App {
     cursor_style: Option<CursorState>,
 }
 
-pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
+pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Result<()> {
     let (tx, rx) = mpsc::channel();
     event::spawn_input_reader(tx.clone());
 
@@ -99,10 +105,12 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         usage: None,
         session_file: is_claude.then(persist::default_path).flatten(),
         last_saved: None,
+        notifications: true,
         started: Instant::now(),
         launch_dir: launch.cwd.clone(),
         next_id: 0,
         cell: CellPx::query(),
+        colors,
         pane_area: areas.pane,
         show_sidebar,
         host_focused: true,
@@ -113,8 +121,12 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         quit: false,
         cursor_style: None,
     };
-    if !launch.fresh {
-        app.restore()?;
+    let saved = app.session_file.as_deref().and_then(persist::load);
+    if let Some(saved) = &saved {
+        app.notifications = saved.notifications;
+        if !launch.fresh {
+            app.restore(saved)?;
+        }
     }
     app.open_launch_folder(launch.cwd, &launch.args)?;
     app.save_session();
@@ -151,8 +163,10 @@ fn build_view<'m>(
     usage: Option<&'m Report>,
     frame: usize,
     (sidebar_scroll, follow_active): (usize, bool),
+    notifications: bool,
 ) -> View<'m> {
     View {
+        notifications,
         sidebar_scroll,
         follow_active,
         spinner_frame: frame,
@@ -196,7 +210,17 @@ impl App {
         if let Some(server) = &self.status_server {
             env.push((status::SOCKET_ENV, server.path().to_string_lossy().into_owned()));
         }
-        Pane::spawn(id, &self.program, &full_args, &env, cwd, self.pane_area, self.cell, self.tx.clone())
+        Pane::spawn(
+            id,
+            &self.program,
+            &full_args,
+            &env,
+            cwd,
+            self.pane_area,
+            self.cell,
+            self.colors,
+            self.tx.clone(),
+        )
     }
 
     /// Switches to the workspace for `path`, starting one if it isn't open.
@@ -306,6 +330,7 @@ impl App {
             self.usage.as_ref(),
             frame,
             (self.sidebar_scroll, follow),
+            self.notifications,
         );
         let images = &self.images;
         let spaces = &mut self.spaces;
@@ -380,8 +405,20 @@ impl App {
             AppEvent::Status(id, status) => {
                 // No point flagging news on the tab you're looking at.
                 let watching = self.host_focused && self.active_id() == Some(id);
-                if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
-                    pane.status = if watching { status.seen() } else { status };
+                let mut news = None;
+                if let Some((ws, pane)) = self.spaces.find_with_workspace_mut(|p| p.id() == id) {
+                    let next = if watching { status.seen() } else { status };
+                    // One notification per change; hooks often repeat a status.
+                    if !watching && next != pane.status {
+                        let title = pane.title().unwrap_or_else(|| "claude".into());
+                        news = notify::message(next, &ws, &title);
+                    }
+                    pane.status = next;
+                }
+                if self.notifications
+                    && let Some((title, body)) = news
+                {
+                    notify::send(title, body);
                 }
                 // A finished turn just spent some of the limit.
                 if matches!(status, Status::Done | Status::Failed)

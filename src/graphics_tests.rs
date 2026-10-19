@@ -27,7 +27,7 @@ fn emulator() -> (Emulator, Arc<Mutex<Vec<u8>>>) {
     let replies = Arc::new(Mutex::new(Vec::new()));
     let writer: Arc<Mutex<Box<dyn Write + Send>>> =
         Arc::new(Mutex::new(Box::new(Sink(Arc::clone(&replies)))));
-    let emu = Emulator::new(20, 4, CellPx { w: 10, h: 20 }, writer).unwrap();
+    let emu = Emulator::new(20, 4, CellPx { w: 10, h: 20 }, Default::default(), writer).unwrap();
     (emu, replies)
 }
 

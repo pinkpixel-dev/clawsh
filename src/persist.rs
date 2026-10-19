@@ -50,6 +50,9 @@ impl SessionRef {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Saved {
     pub version: u32,
+    /// Desktop notifications on or off (`ctrl+b m`). Kept even by `--fresh`.
+    #[serde(default = "on")]
+    pub notifications: bool,
     pub active: usize,
     pub workspaces: Vec<SavedWorkspace>,
 }
@@ -62,9 +65,14 @@ pub struct SavedWorkspace {
 }
 
 impl Saved {
-    pub fn from_spaces<T>(spaces: &Workspaces<T>, session: impl Fn(&T) -> Option<SessionRef>) -> Self {
+    pub fn from_spaces<T>(
+        spaces: &Workspaces<T>,
+        notifications: bool,
+        session: impl Fn(&T) -> Option<SessionRef>,
+    ) -> Self {
         Self {
             version: VERSION,
+            notifications,
             active: spaces.active,
             workspaces: spaces
                 .list
@@ -77,6 +85,10 @@ impl Saved {
                 .collect(),
         }
     }
+}
+
+fn on() -> bool {
+    true
 }
 
 pub fn default_path() -> Option<PathBuf> {
@@ -144,7 +156,8 @@ mod tests {
         spaces.add_tab(2);
         spaces.add_workspace(PathBuf::from("/p/slate"), 3);
         spaces.select_tab(0, 0);
-        let saved = Saved::from_spaces(&spaces, |&t| SessionRef::new(&format!("s{t}"), None));
+        let saved = Saved::from_spaces(&spaces, false, |&t| SessionRef::new(&format!("s{t}"), None));
+        assert!(!saved.notifications);
         assert_eq!(saved.active, 0);
         assert_eq!(saved.workspaces[0].tabs.len(), 2);
         assert_eq!(saved.workspaces[1].tabs[0].as_ref().unwrap().id, "s3");
@@ -154,6 +167,10 @@ mod tests {
         save(&path, &saved).unwrap();
         assert_eq!(load(&path), Some(saved));
         assert!(!path.with_extension("json.tmp").exists());
+
+        // Files from before the setting existed load with notifications on.
+        fs::write(&path, r#"{"version":1,"active":0,"workspaces":[]}"#).unwrap();
+        assert!(load(&path).unwrap().notifications);
 
         fs::write(&path, "not json").unwrap();
         assert_eq!(load(&path), None, "corrupt file means a clean start");

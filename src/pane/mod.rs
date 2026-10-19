@@ -18,6 +18,7 @@ use pty::Pty;
 
 use crate::event::AppEvent;
 use crate::host::CellPx;
+use crate::host_colors::HostColors;
 use crate::persist::SessionRef;
 use crate::status::Status;
 
@@ -43,11 +44,12 @@ impl Pane {
         cwd: &Path,
         area: Rect,
         cell: CellPx,
+        colors: HostColors,
         tx: Sender<AppEvent>,
     ) -> Result<Self> {
         let (cols, rows) = grid(area);
         let pty = Pty::spawn(id, program, args, env, cwd, pty_size(cols, rows, cell), tx)?;
-        let emu = Emulator::new(cols, rows, cell, pty.writer())?;
+        let emu = Emulator::new(cols, rows, cell, colors, pty.writer())?;
         Ok(Self {
             id,
             pty,
