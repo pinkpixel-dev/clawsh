@@ -18,6 +18,7 @@ use pty::Pty;
 
 use crate::event::AppEvent;
 use crate::host::CellPx;
+use crate::persist::SessionRef;
 use crate::status::Status;
 
 /// One running program: its PTY, its emulator, and where it is drawn.
@@ -29,6 +30,8 @@ pub struct Pane {
     area: Rect,
     cell: CellPx,
     pub status: Status,
+    /// The Claude conversation in this pane, once a hook has named it.
+    pub session: Option<SessionRef>,
 }
 
 impl Pane {
@@ -53,6 +56,7 @@ impl Pane {
             area,
             cell,
             status: Status::Idle,
+            session: None,
         })
     }
 

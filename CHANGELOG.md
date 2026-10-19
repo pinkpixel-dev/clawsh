@@ -34,6 +34,12 @@
 - Reads the local Claude Code login and refreshes every 3 minutes, plus after a turn finishes (at most once a minute)
 - Shows a short reason instead when usage can't be read
 
+### 💾 Sessions
+- Workspaces, tabs, and each tab's Claude conversation are restored on the next launch with `claude --resume`
+- Tabs that never got a prompt start fresh; deleted folders are skipped; the launch folder becomes active
+- Saved to `~/.local/state/clawsh/session.json` whenever something changes
+- `clawsh --fresh` starts clean once
+
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`
 - Footer bar with the current workspace, tab, and key hints for the active mode

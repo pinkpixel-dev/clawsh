@@ -1,6 +1,7 @@
 use std::sync::mpsc::Sender;
 use std::thread;
 
+use crate::persist::SessionRef;
 use crate::status::Status;
 use crate::usage::Report;
 
@@ -11,6 +12,8 @@ pub enum AppEvent {
     PtyExited(usize),
     /// A Claude hook reported a pane's status.
     Status(usize, Status),
+    /// A Claude hook reported which conversation a pane is in.
+    Session(usize, SessionRef),
     /// A fresh reading of Claude's usage limits.
     Usage(Report),
 }

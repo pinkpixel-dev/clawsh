@@ -3,6 +3,7 @@ mod event;
 mod graphics;
 mod host;
 mod pane;
+mod persist;
 mod picker;
 mod status;
 mod theme;
@@ -19,12 +20,16 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Everything after `clawsh` goes to Claude. CLAWSH_PROGRAM
-    // swaps the program, which is handy for testing with a plain shell.
+    // `--fresh` skips restoring the last session; everything else after
+    // `clawsh` goes to Claude. CLAWSH_PROGRAM swaps the program, which is
+    // handy for testing with a plain shell.
+    let (ours, args): (Vec<String>, Vec<String>) =
+        std::env::args().skip(1).partition(|a| a == "--fresh");
     let launch = app::Launch {
         program: std::env::var("CLAWSH_PROGRAM").unwrap_or_else(|_| "claude".into()),
-        args: std::env::args().skip(1).collect(),
+        args,
         cwd: std::env::current_dir()?,
+        fresh: !ours.is_empty(),
     };
 
     let mut term = ratatui::init();

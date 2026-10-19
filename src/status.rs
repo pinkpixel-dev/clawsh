@@ -15,6 +15,7 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use crate::event::AppEvent;
+use crate::persist::SessionRef;
 
 pub const PANE_ENV: &str = "CLAWSH_PANE";
 pub const SOCKET_ENV: &str = "CLAWSH_SOCKET";
@@ -141,12 +142,26 @@ pub fn run_hook() {
     let (Ok(pane), Ok(socket)) = (std::env::var(PANE_ENV), std::env::var(SOCKET_ENV)) else {
         return;
     };
-    let Some(status) = serde_json::from_str(&raw).ok().as_ref().and_then(classify) else {
+    let Ok(input) = serde_json::from_str::<Value>(&raw) else {
         return;
     };
+    let mut lines = String::new();
+    // Every payload names its conversation, so `/clear` and `/resume` inside
+    // Claude are picked up too. The transcript path goes last since it can
+    // contain spaces.
+    if let Some(id) = input.get("session_id").and_then(Value::as_str) {
+        let transcript = input.get("transcript_path").and_then(Value::as_str).unwrap_or("");
+        lines.push_str(&format!("{pane} session {id} {transcript}\n"));
+    }
+    if let Some(status) = classify(&input) {
+        lines.push_str(&format!("{pane} {}\n", status.as_str()));
+    }
+    if lines.is_empty() {
+        return;
+    }
     if let Ok(mut stream) = UnixStream::connect(socket) {
         let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
-        let _ = writeln!(stream, "{pane} {}", status.as_str());
+        let _ = stream.write_all(lines.as_bytes());
     }
 }
 
@@ -167,8 +182,8 @@ impl StatusServer {
         thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 for line in BufReader::new(stream).lines().map_while(Result::ok) {
-                    if let Some((pane, status)) = parse_report(&line)
-                        && tx.send(AppEvent::Status(pane, status)).is_err()
+                    if let Some(event) = parse_report(&line)
+                        && tx.send(event).is_err()
                     {
                         return;
                     }
@@ -189,9 +204,16 @@ impl Drop for StatusServer {
     }
 }
 
-fn parse_report(line: &str) -> Option<(usize, Status)> {
-    let (pane, status) = line.trim().split_once(' ')?;
-    Some((pane.parse().ok()?, Status::parse(status)?))
+/// `"<pane> <status>"` or `"<pane> session <id> <transcript path>"`.
+fn parse_report(line: &str) -> Option<AppEvent> {
+    let (pane, rest) = line.trim_end_matches(['\r', '\n']).split_once(' ')?;
+    let pane: usize = pane.parse().ok()?;
+    if let Some(session) = rest.strip_prefix("session ") {
+        let (id, transcript) = session.split_once(' ').unwrap_or((session, ""));
+        let transcript = (!transcript.is_empty()).then(|| PathBuf::from(transcript));
+        return Some(AppEvent::Session(pane, SessionRef::new(id, transcript)?));
+    }
+    Some(AppEvent::Status(pane, Status::parse(rest.trim())?))
 }
 
 #[cfg(test)]
@@ -244,15 +266,20 @@ mod tests {
         let mut stream = UnixStream::connect(server.path()).unwrap();
         writeln!(stream, "7 input").unwrap();
         writeln!(stream, "garbage").unwrap();
+        writeln!(stream, "3 session ab-12 /home/me/My Projects/ab-12.jsonl").unwrap();
+        writeln!(stream, "3 session bad;id /x").unwrap();
         writeln!(stream, "3 done").unwrap();
         drop(stream);
-        let got: Vec<(usize, Status)> = (0..2)
-            .map(|_| match rx.recv_timeout(Duration::from_secs(2)).unwrap() {
-                AppEvent::Status(p, s) => (p, s),
-                _ => panic!("unexpected event"),
-            })
-            .collect();
-        assert_eq!(got, [(7, Status::NeedsInput), (3, Status::Done)]);
+        let next = || rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(matches!(next(), AppEvent::Status(7, Status::NeedsInput)));
+        match next() {
+            AppEvent::Session(3, s) => {
+                assert_eq!(s.id, "ab-12");
+                assert_eq!(s.transcript, Some(PathBuf::from("/home/me/My Projects/ab-12.jsonl")));
+            }
+            _ => panic!("expected a session report"),
+        }
+        assert!(matches!(next(), AppEvent::Status(3, Status::Done)), "bad ids are dropped");
         let path = server.path().to_path_buf();
         drop(server);
         assert!(!path.exists(), "socket cleaned up");

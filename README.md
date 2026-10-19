@@ -39,7 +39,21 @@ Run it from the folder you want Claude to work in:
 ./target/release/clawsh
 ```
 
-That folder becomes your first workspace. Anything after `clawsh` is passed to that first `claude`, so `clawsh --resume` works like `claude --resume`.
+That folder becomes your active workspace. Anything after `clawsh` is passed to Claude in that folder, so `clawsh --resume` works like `claude --resume`.
+
+### Picking up where you left off
+
+Claw$h remembers your workspaces, their tabs, and which conversation each tab was in. Next time you start it, everything comes back, and each tab reopens its conversation with `claude --resume`. A tab that never got a prompt just starts a fresh Claude, since there's nothing to resume yet. Folders that have been deleted are skipped, and the folder you launched from is added if it wasn't already open.
+
+It's saved to `~/.local/state/clawsh/session.json` (or `$XDG_STATE_HOME/clawsh/session.json`) every time something changes, so closing the window or a crash doesn't lose anything. Closing every tab leaves you with a clean slate next time.
+
+To skip the restore once and start clean:
+
+```bash
+./target/release/clawsh --fresh
+```
+
+`--fresh` is the only flag Claw$h keeps for itself. Everything else still goes to Claude.
 
 Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcuts:
 

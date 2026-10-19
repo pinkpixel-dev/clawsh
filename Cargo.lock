@@ -196,6 +196,7 @@ dependencies = [
  "png",
  "portable-pty",
  "ratatui",
+ "serde",
  "serde_json",
  "ureq",
 ]

@@ -1,4 +1,5 @@
 mod input;
+mod session;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -14,6 +15,7 @@ use crate::event::{self, AppEvent};
 use crate::graphics::ImageBridge;
 use crate::host::{self, CellPx};
 use crate::pane::{CursorState, Pane};
+use crate::persist::{self, Saved};
 use crate::picker::Picker;
 use crate::status::{self, Status, StatusServer};
 use crate::ui::{self, Hits, TabView, View, WorkspaceView};
@@ -24,6 +26,8 @@ pub struct Launch {
     pub program: String,
     pub args: Vec<String>,
     pub cwd: PathBuf,
+    /// Skip restoring the last session.
+    pub fresh: bool,
 }
 
 enum Mode {
@@ -48,6 +52,10 @@ struct App {
     /// Only runs when the program is Claude.
     usage_poller: Option<UsagePoller>,
     usage: Option<Report>,
+    /// Where the session is saved; only set when the program is Claude, so
+    /// test runs with another program never touch it.
+    session_file: Option<PathBuf>,
+    last_saved: Option<Saved>,
     started: Instant,
     launch_dir: PathBuf,
     next_id: usize,
@@ -85,6 +93,8 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         status_server,
         usage_poller,
         usage: None,
+        session_file: is_claude.then(persist::default_path).flatten(),
+        last_saved: None,
         started: Instant::now(),
         launch_dir: launch.cwd.clone(),
         next_id: 0,
@@ -97,12 +107,17 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         quit: false,
         cursor_style: None,
     };
-    app.open_workspace(launch.cwd, &launch.args)?;
+    if !launch.fresh {
+        app.restore()?;
+    }
+    app.open_launch_folder(launch.cwd, &launch.args)?;
+    app.save_session();
 
     let result = (|| {
         while !app.quit {
             app.draw(term)?;
             app.wait(&rx)?;
+            app.save_session();
         }
         Ok(())
     })();
@@ -342,6 +357,11 @@ impl App {
                     && let Some(poller) = &self.usage_poller
                 {
                     poller.refresh();
+                }
+            }
+            AppEvent::Session(id, session) => {
+                if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
+                    pane.session = Some(session);
                 }
             }
             AppEvent::Usage(report) => self.usage = Some(report),
