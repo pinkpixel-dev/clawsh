@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.0 - Unreleased
+## 1.0.0 - October 19, 2026
+
+First public release.
 
 ### 🖥️ Pane
 - Runs `claude` in a PTY with libghostty-vt doing the terminal emulation and ratatui drawing it
@@ -83,6 +85,15 @@
 - The sidebar hides itself on narrow terminals
 - The sidebar scrolls when it's full, follows the active tab, and scrolls with the mouse wheel
 
+### 📦 Install
+- Prebuilt Linux binaries for x86_64 and aarch64 on every GitHub release, built on Ubuntu 22.04 (glibc 2.35 or newer)
+- `cargo binstall clawsh-tui` downloads the release binary instead of compiling
+- Published to crates.io as `clawsh-tui`
+
 ### 🧹 Maintenance
 - Input is read by Claw$h itself, through a copy of crossterm's parser that also understands terminal replies, so theme notices and color replies can never turn into keystrokes
 - `scripts/cargo.sh` builds with a local Zig 0.15 toolchain, which Ghostty requires
+- Release workflow builds, packages, and checksums the binaries when a `v*` tag is pushed
+
+### 🏷️ Versioning
+- 1.0.0

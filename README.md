@@ -16,6 +16,13 @@ This is early, but it's usable. You get workspaces (one per folder) with as many
 
 I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
 
+## Requirements
+
+- Linux (x86_64 or aarch64). I haven't tried macOS, and Windows won't work.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and logged in, with `claude` on your `PATH`
+- kitty or Ghostty as your terminal if you want images from Claude mods. Everything else works in any terminal.
+- `git` for the review view, and `notify-send` for desktop notifications. Both are optional; without them those two features just don't do anything.
+
 ## Installing
 
 Each release on GitHub comes with prebuilt Linux binaries for x86_64 and aarch64, so you don't need Rust or Zig installed. They're built on Ubuntu 22.04, so any distro with glibc 2.35 or newer should be fine.
@@ -59,8 +66,10 @@ The first build clones Ghostty into the build directory, so it needs network acc
 Run it from the folder you want Claude to work in:
 
 ```bash
-./target/release/clawsh
+clawsh
 ```
+
+If you built from source and didn't copy the binary anywhere, it's `./target/release/clawsh` instead.
 
 That folder becomes your active workspace. Anything after `clawsh` is passed to Claude in that folder, so `clawsh --resume` works like `claude --resume`.
 
@@ -73,10 +82,12 @@ It's saved to `~/.local/state/clawsh/session.json` (or `$XDG_STATE_HOME/clawsh/s
 To skip the restore once and start clean:
 
 ```bash
-./target/release/clawsh --fresh
+clawsh --fresh
 ```
 
 `--fresh` is the only flag Claw$h keeps for itself. Everything else still goes to Claude.
+
+### Keys
 
 Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcuts:
 
@@ -185,7 +196,7 @@ When Claw$h starts, it asks your terminal for its real text and background color
 Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a warm light palette on light terminals, the charcoal one on dark ones. If you switch your terminal's theme while Claw$h is running, it notices and switches its own palette, and every tab gets the new colors. That needs a terminal that announces theme changes (mode 2031); Ghostty does, and I believe recent kitty does as well. Claude itself picks its theme when it starts (as of Claude Code 2.1.303 it doesn't listen for theme changes), so a Claude that's already running keeps its theme until you restart it or change it with `/theme`. New tabs get the right one. If your terminal doesn't report its colors at all, Claw$h stays dark. To pin one yourself:
 
 ```bash
-CLAWSH_THEME=light ./target/release/clawsh
+CLAWSH_THEME=light clawsh
 ```
 
 ### Reviewing changes
@@ -237,12 +248,14 @@ To copy text yourself, including stuff that's scrolled off the top, press `ctrl+
 
 In tabs where the program doesn't use the mouse itself (a plain shell, for example), you can also just drag across text. It's copied when you let go. Double-click copies the word under the pointer, and triple-click copies the whole line. Claude does its own mouse handling, so inside Claude, use its selection or copy mode. Holding `shift` while dragging still works too, but that's your terminal's own selection, so it covers the whole Claw$h window, sidebar included.
 
-You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar. When there are more workspaces than fit, the sidebar follows whichever tab you're on, and the mouse wheel scrolls it.
+### Mouse and the folder picker
+
+You can click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar. When there are more workspaces than fit, the sidebar follows whichever tab you're on, and the mouse wheel scrolls it.
 
 The folder picker lists the folder you launched from plus its sibling folders. Type to fuzzy filter, or type a full path (starting with `/` or `~`) to open any folder. If you keep projects somewhere else too, add those parent folders to `CLAWSH_PROJECTS`, separated by colons:
 
 ```bash
-CLAWSH_PROJECTS=~/work:~/oss ./target/release/clawsh
+CLAWSH_PROJECTS=~/work:~/oss clawsh
 ```
 
 Picking a folder that's already open just switches to it. When the last tab closes, Claw$h quits.
@@ -250,15 +263,25 @@ Picking a folder that's already open just switches to it. When the last tab clos
 To try it with something other than Claude, set `CLAWSH_PROGRAM`:
 
 ```bash
-CLAWSH_PROGRAM=bash ./target/release/clawsh
+CLAWSH_PROGRAM=bash clawsh
 ```
+
+### Environment variables
+
+| Variable | What it does |
+|---|---|
+| `CLAWSH_PROJECTS` | Extra parent folders for the folder picker, separated by colons |
+| `CLAWSH_THEME` | `light` or `dark`, to pin Claw$h's palette instead of following the terminal |
+| `CLAWSH_PROGRAM` | Run something other than `claude` in each tab (hooks and usage are turned off) |
+| `CLAWSH_IMAGES` | `direct` sends images as base64 instead of through shared memory |
+| `CLAUDE_CONFIG_DIR` | Where to find your Claude Code login, if it's not in `~/.claude` |
 
 ## Troubleshooting
 
 **Images from Claude mods don't show up.** Claw$h hands image pixels to your terminal through shared memory (`/dev/shm`), which is quick and keeps animated mods cheap. It switches to plain base64 on its own over SSH. If your terminal still doesn't show images, try forcing base64:
 
 ```bash
-CLAWSH_IMAGES=direct ./target/release/clawsh
+CLAWSH_IMAGES=direct clawsh
 ```
 
 ## License
