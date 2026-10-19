@@ -4,7 +4,7 @@
 //! There's a dark and a light palette. Which one is used is decided once at
 //! startup from the terminal's own background, or `CLAWSH_THEME`.
 
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use libghostty_vt::terminal::ColorScheme;
 use ratatui::style::{Color, Modifier, Style};
@@ -51,7 +51,9 @@ pub static LIGHT: Palette = Palette {
     danger: Color::Rgb(0xb5, 0x2a, 0x25),
 };
 
-static PALETTE: OnceLock<&'static Palette> = OnceLock::new();
+static LIGHT_ON: AtomicBool = AtomicBool::new(false);
+/// Set by `CLAWSH_THEME`; the terminal's own changes are ignored then.
+static PINNED: AtomicBool = AtomicBool::new(false);
 
 /// Picks the palette for this run. `CLAWSH_THEME=light|dark` wins; then the
 /// terminal's own light or dark background; dark when neither says.
@@ -64,13 +66,22 @@ pub fn choose(forced: Option<&str>, scheme: Option<ColorScheme>) -> &'static Pal
     }
 }
 
-/// Sets the palette once, at startup.
-pub fn init(palette: &'static Palette) {
-    let _ = PALETTE.set(palette);
+/// Sets the palette at startup.
+pub fn init(forced: Option<&str>, scheme: Option<ColorScheme>) {
+    LIGHT_ON.store(std::ptr::eq(choose(forced, scheme), &LIGHT), Ordering::Relaxed);
+    PINNED.store(matches!(forced, Some("light" | "dark")), Ordering::Relaxed);
+}
+
+/// Follows the terminal switching between light and dark, unless
+/// `CLAWSH_THEME` pinned the palette.
+pub fn follow(scheme: ColorScheme) {
+    if !PINNED.load(Ordering::Relaxed) {
+        LIGHT_ON.store(scheme == ColorScheme::Light, Ordering::Relaxed);
+    }
 }
 
 pub fn palette() -> &'static Palette {
-    PALETTE.get().copied().unwrap_or(&DARK)
+    if LIGHT_ON.load(Ordering::Relaxed) { &LIGHT } else { &DARK }
 }
 
 pub fn bar() -> Style {

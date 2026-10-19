@@ -3,6 +3,7 @@ mod event;
 mod graphics;
 mod host;
 mod host_colors;
+mod input;
 mod notify;
 mod pane;
 mod persist;
@@ -39,7 +40,7 @@ fn main() -> Result<()> {
     // Ask for the terminal's colors before anything else reads stdin.
     let colors = host_colors::query();
     let forced = std::env::var("CLAWSH_THEME").ok();
-    theme::init(theme::choose(forced.as_deref(), colors.scheme()));
+    theme::init(forced.as_deref(), colors.scheme());
     let result = host::HostGuard::enter().and_then(|_guard| app::run(&mut term, launch, colors));
     ratatui::restore();
     result

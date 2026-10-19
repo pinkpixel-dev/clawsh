@@ -88,7 +88,7 @@ fn has_da1(buf: &[u8]) -> bool {
 
 /// Finds `ESC ] <code> ; rgb:RRRR/GGGG/BBBB` (ended by BEL or ST) and scales
 /// each channel to 8 bits. Channels can be 1 to 4 hex digits.
-fn parse_osc_color(buf: &[u8], code: u8) -> Option<RgbColor> {
+pub(crate) fn parse_osc_color(buf: &[u8], code: u8) -> Option<RgbColor> {
     let text = String::from_utf8_lossy(buf);
     let start = text.find(&format!("\x1b]{code};rgb:"))? + format!("\x1b]{code};rgb:").len();
     let rest = &text[start..];

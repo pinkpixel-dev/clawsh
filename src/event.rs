@@ -1,5 +1,5 @@
-use std::sync::mpsc::Sender;
-use std::thread;
+use libghostty_vt::style::RgbColor;
+use libghostty_vt::terminal::ColorScheme;
 
 use crate::persist::SessionRef;
 use crate::status::Status;
@@ -16,15 +16,8 @@ pub enum AppEvent {
     Session(usize, SessionRef),
     /// A fresh reading of Claude's usage limits.
     Usage(Report),
-}
-
-/// Reads host terminal input on its own thread.
-pub fn spawn_input_reader(tx: Sender<AppEvent>) {
-    thread::spawn(move || {
-        while let Ok(ev) = crossterm::event::read() {
-            if tx.send(AppEvent::Input(ev)).is_err() {
-                break;
-            }
-        }
-    });
+    /// The host terminal switched between light and dark (mode 2031).
+    HostScheme(ColorScheme),
+    /// The host terminal's reply to OSC 10 (foreground) or 11 (background).
+    HostColor(u8, RgbColor),
 }
