@@ -10,6 +10,10 @@ I mostly use Claude, so the goal is to keep everything Claude already does (incl
 
 The command is `clawsh` (the `$` only lives in the name, since shells would read `$h` as a variable). On crates.io the package is `clawsh-tui`.
 
+<p align="center">
+  <img src="screenshot.png" alt="Claw$h icon" width="800">
+</p>
+
 ## Features
 
 - **Workspaces and tabs.** One workspace per folder, as many Claude tabs as you want in each, and a sidebar and tab bar you can click.
