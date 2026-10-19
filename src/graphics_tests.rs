@@ -86,6 +86,7 @@ fn panes_never_share_host_ids() {
     bridge.sync(0, &mut a, &mut out).unwrap();
     bridge.sync(1, &mut b, &mut out).unwrap();
     assert_ne!(bridge.remap(0, 1), bridge.remap(1, 1));
+    assert_eq!(bridge.remap(1, 1), Some(FIRST_HOST_ID + 2), "each image reserves two IDs");
 }
 
 #[test]
@@ -190,6 +191,38 @@ fn reuploads_send_one_placement_per_size() {
     let out = text(&out);
     assert_eq!(out.matches("a=t").count(), 1, "new pixels go up again");
     assert_eq!(out.matches("a=p").count(), 1, "{out:?}");
+}
+
+#[test]
+fn new_frames_swap_ids_without_a_gap() {
+    let (mut emu, _) = emulator();
+    let mut bridge = ImageBridge::new();
+    let (a, b) = (FIRST_HOST_ID, FIRST_HOST_ID + 1);
+
+    upload_rgb(&mut emu, 7);
+    bridge.sync(0, &mut emu, &mut Vec::new()).unwrap();
+    assert_eq!(bridge.remap(0, 7), Some(a));
+
+    // Frame 2 goes up under the spare ID, and A is still on the host.
+    upload_rgb(&mut emu, 7);
+    let mut out = Vec::new();
+    bridge.sync(0, &mut emu, &mut out).unwrap();
+    let out = text(&out);
+    assert!(out.contains(&format!("a=t,q=2,i={b},")), "{out:?}");
+    assert!(!out.contains("a=d"), "nothing deleted before the draw: {out:?}");
+    assert_eq!(bridge.remap(0, 7), Some(b), "cells move to the new frame");
+
+    // After the draw, A goes away.
+    let mut out = Vec::new();
+    bridge.after_draw(&mut out);
+    assert_eq!(text(&out), format!("\x1b_Ga=d,d=I,q=2,i={a}\x1b\\"));
+
+    // Frame 3 reuses A.
+    upload_rgb(&mut emu, 7);
+    let mut out = Vec::new();
+    bridge.sync(0, &mut emu, &mut out).unwrap();
+    assert!(text(&out).contains(&format!("a=t,q=2,i={a},")));
+    assert_eq!(bridge.remap(0, 7), Some(a));
 }
 
 #[test]

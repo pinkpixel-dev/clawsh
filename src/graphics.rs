@@ -7,6 +7,12 @@
 //! so two panes can never collide, and the renderer rewrites placeholder colors
 //! to match. The host does the actual drawing, and the image scrolls and clips
 //! with its cells for free.
+//!
+//! Every image gets two host IDs that take turns. Re-uploading under the ID
+//! that's on screen makes the host drop the old image and its placements
+//! first, so animated images would blink. Instead a new frame goes up under
+//! the spare ID, the cells switch to it, and the old ID is deleted only after
+//! that frame is drawn (see [`ImageBridge::after_draw`]).
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
@@ -29,11 +35,20 @@ const LOW_MASK: u32 = 0x00FF_FFFF;
 const FIRST_HOST_ID: u32 = 0x00C1_A000;
 
 struct Sent {
-    /// Full host ID: the pane image's high byte plus our own low 24 bits.
-    host_id: u32,
+    /// Two full host IDs (the pane image's high byte plus our own low 24
+    /// bits) that take turns holding the current frame.
+    ids: [u32; 2],
+    /// Which of `ids` is on screen.
+    current: usize,
     generation: u64,
     /// Distinct placement sizes; the host placement ID is the index + 1.
     sizes: Vec<Size>,
+}
+
+impl Sent {
+    fn host_id(&self) -> u32 {
+        self.ids[self.current]
+    }
 }
 
 /// A virtual placement's size in cells (0 lets the terminal work it out).
@@ -49,6 +64,8 @@ struct PaneImages {
 pub struct ImageBridge {
     next_low: u32,
     panes: HashMap<usize, PaneImages>,
+    /// Host IDs that were swapped out this frame, deleted after the draw.
+    retired: Vec<u32>,
 }
 
 impl ImageBridge {
@@ -56,8 +73,10 @@ impl ImageBridge {
         Self {
             next_low: FIRST_HOST_ID,
             panes: HashMap::new(),
+            retired: Vec::new(),
         }
     }
+
 
     /// Brings the host up to date with one pane's images, appending the kitty
     /// commands to `out`. Cheap when nothing changed.
@@ -83,7 +102,7 @@ impl ImageBridge {
         state.images.retain(|id, sent| {
             let keep = wanted.contains_key(id);
             if !keep {
-                delete(out, sent.host_id);
+                delete(out, sent.host_id());
             }
             keep
         });
@@ -96,26 +115,31 @@ impl ImageBridge {
             let stale = sent.is_none_or(|s| s.generation != img_gen);
             if stale {
                 let Some(img) = emu.image(id)? else { continue };
-                let host_id = match sent {
-                    Some(s) => s.host_id,
+                // New frames go to the spare ID; the one on screen stays put
+                // until the cells have moved over.
+                let (ids, slot) = match sent {
+                    Some(s) => (s.ids, 1 - s.current),
                     None => {
-                        let low = self.next_low;
-                        self.next_low = next_low(low);
-                        (id & !LOW_MASK) | low
+                        let high = id & !LOW_MASK;
+                        let (a, b) = (self.next_low, next_low(self.next_low));
+                        self.next_low = next_low(b);
+                        ([high | a, high | b], 0)
                     }
                 };
-                // A fresh upload replaces the old pixels and drops the old
-                // placements, so every placement goes out again.
-                if !transmit(out, host_id, &img) {
+                if !transmit(out, ids[slot], &img) {
                     continue;
                 }
                 for (i, size) in sizes.iter().enumerate() {
-                    place(out, host_id, i, *size);
+                    place(out, ids[slot], i, *size);
+                }
+                if let Some(s) = sent {
+                    self.retired.push(s.host_id());
                 }
                 state.images.insert(
                     id,
                     Sent {
-                        host_id,
+                        ids,
+                        current: slot,
                         generation: img_gen,
                         sizes,
                     },
@@ -126,7 +150,7 @@ impl ImageBridge {
                 // Same placement ID, same slot: a changed size replaces the old one.
                 for (i, size) in sizes.iter().enumerate() {
                     if s.sizes.get(i) != Some(size) {
-                        place(out, s.host_id, i, *size);
+                        place(out, s.host_id(), i, *size);
                     }
                 }
                 s.sizes = sizes;
@@ -144,26 +168,36 @@ impl ImageBridge {
             .images
             .iter()
             .find(|(id, _)| *id & LOW_MASK == inner_low)
-            .map(|(_, s)| s.host_id & LOW_MASK)
+            .map(|(_, s)| s.host_id() & LOW_MASK)
+    }
+
+    /// Deletes frames that were swapped out. Call after the frame that moved
+    /// their cells to the new ID has been drawn.
+    pub fn after_draw(&mut self, out: &mut Vec<u8>) {
+        for id in self.retired.drain(..) {
+            delete(out, id);
+        }
     }
 
     /// Deletes one pane's images from the host, for when the pane closes.
     pub fn forget(&mut self, pane: usize, out: &mut Vec<u8>) {
         if let Some(state) = self.panes.remove(&pane) {
             for sent in state.images.values() {
-                delete(out, sent.host_id);
+                delete(out, sent.host_id());
             }
         }
+        self.after_draw(out);
     }
 
     /// Deletes every image this bridge put on the host.
     pub fn clear(&mut self, out: &mut Vec<u8>) {
         for state in self.panes.values() {
             for sent in state.images.values() {
-                delete(out, sent.host_id);
+                delete(out, sent.host_id());
             }
         }
         self.panes.clear();
+        self.after_draw(out);
     }
 }
 

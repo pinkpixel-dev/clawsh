@@ -273,6 +273,11 @@ impl App {
         })?;
         self.hits = hits;
 
+        // Old animation frames go only once the new cells are on screen.
+        let mut out = Vec::new();
+        self.images.after_draw(&mut out);
+        write_host(&out)?;
+
         if let Some((c, _)) = pane_cursor?
             && self
                 .cursor_style

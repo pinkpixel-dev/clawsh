@@ -13,6 +13,7 @@
 - Each pane's images get their own IDs on the host, so tabs can't overwrite each other's pictures
 - PNG images sent with the kitty protocol are decoded
 - Images Claw$h uploaded are removed from the host on exit
+- Animated images (like the Clawd dashboard tile) no longer flash between frames
 
 ### 🗂️ Workspaces and tabs
 - Workspaces are folders, each with its own Claude tabs
