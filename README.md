@@ -16,6 +16,25 @@ This is early, but it's usable. You get workspaces (one per folder) with as many
 
 I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
 
+## Installing
+
+Each release on GitHub comes with prebuilt Linux binaries for x86_64 and aarch64, so you don't need Rust or Zig installed. They're built on Ubuntu 22.04, so any distro with glibc 2.35 or newer should be fine.
+
+The quickest way is [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), which grabs the right binary for your machine:
+
+```bash
+cargo binstall clawsh-tui
+```
+
+Or download it yourself from the [releases page](https://github.com/pinkpixel-dev/clawsh/releases). Each tarball has a `.sha256` file next to it:
+
+```bash
+tar xzf clawsh-x86_64-unknown-linux-gnu.tar.gz
+install -Dm755 clawsh-x86_64-unknown-linux-gnu/clawsh ~/.local/bin/clawsh
+```
+
+You can also install from crates.io with `cargo install clawsh-tui`, but that compiles Ghostty from source, so you'll need the Zig setup described in [Building](#building) first.
+
 ## Building
 
 The terminal emulation comes from [libghostty-vt](https://docs.rs/libghostty-vt), which builds Ghostty from source with Zig. Ghostty needs **Zig 0.15.x** exactly, and newer Zig releases (like the 0.16 in Arch's repos) fail its version check.

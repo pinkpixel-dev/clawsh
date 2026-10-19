@@ -4,6 +4,17 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Claw$h, a ratatui workspace shell for Claude Code sessions"
+repository = "https://github.com/pinkpixel-dev/clawsh"
+homepage = "https://github.com/pinkpixel-dev/clawsh"
+readme = "README.md"
+keywords = ["claude", "tui", "terminal", "ratatui", "multiplexer"]
+categories = ["command-line-utilities"]
+exclude = ["/scripts", "/.github"]
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/clawsh-{ target }.tar.gz"
+bin-dir = "clawsh-{ target }/{ bin }"
+pkg-fmt = "tgz"
 
 [dependencies]
 anyhow = "1"
