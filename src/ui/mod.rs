@@ -5,7 +5,9 @@ mod footer;
 mod picker;
 mod sidebar;
 mod tabbar;
+mod usage;
 
+use chrono::{DateTime, Utc};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::style::{Modifier, Style};
@@ -14,6 +16,7 @@ use ratatui::text::Span;
 use crate::picker::Picker;
 use crate::status::Status;
 use crate::theme;
+use crate::usage::Report;
 
 const SIDEBAR_WIDTH: u16 = 26;
 /// Below this width the sidebar hides itself so the pane stays usable.
@@ -106,6 +109,10 @@ pub enum Mode<'a> {
 pub struct View<'a> {
     /// Advances while anything is working, to animate the spinner.
     pub spinner_frame: usize,
+    /// Claude's limits, shown once at the bottom of the sidebar. `None` when
+    /// the program isn't Claude or the first reading hasn't arrived.
+    pub usage: Option<&'a Report>,
+    pub now: DateTime<Utc>,
     pub workspaces: Vec<WorkspaceView>,
     pub active: usize,
     pub mode: Mode<'a>,

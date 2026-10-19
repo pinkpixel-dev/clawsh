@@ -17,6 +17,7 @@ use crate::pane::{CursorState, Pane};
 use crate::picker::Picker;
 use crate::status::{self, Status, StatusServer};
 use crate::ui::{self, Hits, TabView, View, WorkspaceView};
+use crate::usage::{Report, UsagePoller};
 use crate::workspace::Workspaces;
 
 pub struct Launch {
@@ -44,6 +45,9 @@ struct App {
     /// when the status socket is up.
     hook_settings: Option<String>,
     status_server: Option<StatusServer>,
+    /// Only runs when the program is Claude.
+    usage_poller: Option<UsagePoller>,
+    usage: Option<Report>,
     started: Instant,
     launch_dir: PathBuf,
     next_id: usize,
@@ -71,6 +75,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         (Some(_), Ok(exe)) if is_claude => Some(status::hook_settings(&exe)),
         _ => None,
     };
+    let usage_poller = is_claude.then(|| UsagePoller::start(tx.clone()));
     let mut app = App {
         spaces: Workspaces::new(),
         images: ImageBridge::new(),
@@ -78,6 +83,8 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         program: launch.program,
         hook_settings,
         status_server,
+        usage_poller,
+        usage: None,
         started: Instant::now(),
         launch_dir: launch.cwd.clone(),
         next_id: 0,
@@ -116,9 +123,16 @@ fn write_host(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn build_view<'m>(spaces: &Workspaces<Pane>, mode: &'m Mode, frame: usize) -> View<'m> {
+fn build_view<'m>(
+    spaces: &Workspaces<Pane>,
+    mode: &'m Mode,
+    usage: Option<&'m Report>,
+    frame: usize,
+) -> View<'m> {
     View {
         spinner_frame: frame,
+        usage,
+        now: chrono::Utc::now(),
         workspaces: spaces
             .list
             .iter()
@@ -247,7 +261,7 @@ impl App {
         write_host(&out)?;
 
         let frame = (self.started.elapsed().as_millis() / SPINNER_TICK.as_millis()) as usize;
-        let view = build_view(&self.spaces, &self.mode, frame);
+        let view = build_view(&self.spaces, &self.mode, self.usage.as_ref(), frame);
         let images = &self.images;
         let spaces = &mut self.spaces;
         let normal = matches!(self.mode, Mode::Normal);
@@ -323,7 +337,14 @@ impl App {
                 if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
                     pane.status = if watching { status.seen() } else { status };
                 }
+                // A finished turn just spent some of the limit.
+                if matches!(status, Status::Done | Status::Failed)
+                    && let Some(poller) = &self.usage_poller
+                {
+                    poller.refresh();
+                }
             }
+            AppEvent::Usage(report) => self.usage = Some(report),
             AppEvent::Input(input) => match input {
                 Event::Key(k) => self.key(k)?,
                 Event::Mouse(m) => self.mouse(m)?,

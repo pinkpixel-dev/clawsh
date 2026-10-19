@@ -8,7 +8,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 
 ## Status
 
-This is early, but it's usable. You get workspaces (one per folder) with as many Claude tabs as you want in each, a sidebar and tab bar you can click, and kitty images from Claude and its mods passed through to your terminal. Each tab shows what its Claude is doing, so you can tell at a glance which project needs you. Usage limits are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
+This is early, but it's usable. You get workspaces (one per folder) with as many Claude tabs as you want in each, a sidebar and tab bar you can click, and kitty images from Claude and its mods passed through to your terminal. Each tab shows what its Claude is doing, so you can tell at a glance which project needs you, and the bottom of the sidebar shows how much of your 5-hour and weekly Claude limits you have left. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
 
 I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
 
@@ -72,7 +72,15 @@ Every tab has a little status icon in the sidebar and the tab bar, and each work
 
 This works through Claude Code hooks. Claw$h starts each Claude tab with `claude --settings '…'`, which adds a few hooks that run `clawsh __hook` and report back over a local socket. Those hooks are added next to your own hooks, not instead of them, and nothing in your Claude config gets changed. If you set `CLAWSH_PROGRAM` to something other than `claude`, the hooks are left off.
 
-You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace`.
+### Usage limits
+
+The bottom of the sidebar shows your Claude 5-hour and weekly windows: a bar and the percent you have **left**, plus how long until each one resets. The bar is green normally, yellow under 25% left, and red under 10%.
+
+Claw$h reads your Claude Code login from `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`) and asks Anthropic's usage endpoint, the same one Claude Code uses for its own usage screen. Nothing gets written anywhere. It refreshes every 3 minutes, and sooner after a tab finishes a turn, but never more than once a minute. If it can't get a reading you'll see a short reason instead, like `usage: offline` or `usage: token expired, open Claude`.
+
+Usage only shows when Claw$h is running Claude, so it stays out of the way with `CLAWSH_PROGRAM`.
+
+You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar.
 
 The folder picker lists the folder you launched from plus its sibling folders. Type to fuzzy filter, or type a full path (starting with `/` or `~`) to open any folder. If you keep projects somewhere else too, add those parent folders to `CLAWSH_PROJECTS`, separated by colons:
 

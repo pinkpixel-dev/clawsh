@@ -7,6 +7,7 @@ mod picker;
 mod status;
 mod theme;
 mod ui;
+mod usage;
 mod workspace;
 
 use anyhow::Result;

@@ -2,6 +2,7 @@ use std::sync::mpsc::Sender;
 use std::thread;
 
 use crate::status::Status;
+use crate::usage::Report;
 
 /// Everything the main loop reacts to, funneled through one channel.
 pub enum AppEvent {
@@ -10,6 +11,8 @@ pub enum AppEvent {
     PtyExited(usize),
     /// A Claude hook reported a pane's status.
     Status(usize, Status),
+    /// A fresh reading of Claude's usage limits.
+    Usage(Report),
 }
 
 /// Reads host terminal input on its own thread.

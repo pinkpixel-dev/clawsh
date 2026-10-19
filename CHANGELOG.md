@@ -19,7 +19,7 @@
 - Workspaces are folders, each with its own Claude tabs
 - Sidebar lists workspaces and their tabs, with a tab bar for the current workspace
 - Folder picker with fuzzy search over the launch folder's siblings, typed paths, and `CLAWSH_PROJECTS`
-- Click workspaces, tabs, `+`, and `+ new workspace`
+- Click workspaces, tabs, `+`, and `+ new workspace` (at the top of the sidebar)
 - Hidden tabs keep running at full size, so switching never reflows them
 - Closing a tab removes its images from the terminal; closing the last one quits
 
@@ -28,6 +28,11 @@
 - Workspaces show their most urgent tab, so the one that needs you stands out
 - Done and failed clear once you open or type in that tab
 - Status comes from Claude Code hooks added per tab with `--settings`, next to your existing hooks
+
+### 📊 Usage
+- The sidebar shows Claude's 5-hour and weekly limits: percent left, a colored bar, and time until reset
+- Reads the local Claude Code login and refreshes every 3 minutes, plus after a turn finishes (at most once a minute)
+- Shows a short reason instead when usage can't be read
 
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`

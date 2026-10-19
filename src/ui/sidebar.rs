@@ -4,7 +4,7 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders};
 
-use super::{Click, Hits, View, status_icon, truncate};
+use super::{Click, Hits, View, status_icon, truncate, usage};
 use crate::status::Status;
 use crate::theme;
 
@@ -18,10 +18,17 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
 
     let width = inner.width as usize;
     let mut y = inner.y;
-    let bottom = inner.bottom().saturating_sub(1); // last row is "+ new workspace"
+    // Usage owns the bottom rows; the workspace list stops a row above it.
+    let usage_rows = if view.usage.is_some() { usage::HEIGHT + 1 } else { 0 };
+    let bottom = inner.bottom().saturating_sub(usage_rows);
     let buf = frame.buffer_mut();
 
     buf.set_line(inner.x, y, &Line::from(Span::styled(" Claw$h", theme::accent())), inner.width);
+    y += 1;
+    // Up top, next to the title, so it's easy to find.
+    let new_row = Rect::new(inner.x, y, inner.width, 1);
+    buf.set_line(inner.x, y, &Line::from(Span::styled(" + new workspace", theme::muted())), inner.width);
+    hits.push(new_row, Click::NewWorkspace);
     y += 2;
 
     for (wi, ws) in view.workspaces.iter().enumerate() {
@@ -71,12 +78,8 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
         y += 1;
     }
 
-    let new_row = Rect::new(inner.x, bottom, inner.width, 1);
-    buf.set_line(
-        inner.x,
-        bottom,
-        &Line::from(Span::styled(" + new workspace", theme::faint())),
-        inner.width,
-    );
-    hits.push(new_row, Click::NewWorkspace);
+    if view.usage.is_some() && bottom > inner.y + 3 {
+        let area = Rect::new(inner.x, bottom + 1, inner.width, usage::HEIGHT);
+        usage::draw(buf, area, view.usage, view.now);
+    }
 }
