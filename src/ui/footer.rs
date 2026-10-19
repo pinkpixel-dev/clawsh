@@ -10,9 +10,9 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
     let mut left = vec![Span::styled(" Claw$h ", theme::accent())];
     if let Some(ws) = view.workspaces.get(view.active) {
         left.push(Span::raw(ws.name.clone()));
-        if let Some(title) = ws.tabs.get(ws.active_tab) {
+        if let Some(tab) = ws.tabs.get(ws.active_tab) {
             left.push(Span::styled(" › ", theme::faint()));
-            left.push(Span::raw(title.clone()));
+            left.push(Span::raw(tab.title.clone()));
         }
     }
 

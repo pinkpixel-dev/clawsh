@@ -57,6 +57,7 @@ impl Pty {
         id: usize,
         program: &str,
         args: &[String],
+        env: &[(&str, String)],
         cwd: &Path,
         size: PtySize,
         tx: Sender<AppEvent>,
@@ -75,6 +76,9 @@ impl Pty {
         cmd.env("COLORTERM", "truecolor");
         cmd.env("TERM_PROGRAM", "clawsh");
         cmd.env("CLAWSH", "1");
+        for (key, value) in env {
+            cmd.env(key, value);
+        }
 
         let child = pair
             .slave

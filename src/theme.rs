@@ -11,6 +11,9 @@ pub const TEXT: Color = Color::Rgb(0xec, 0xec, 0xef);
 pub const MUTED: Color = Color::Rgb(0x8a, 0x8c, 0x96);
 pub const FAINT: Color = Color::Rgb(0x5c, 0x5e, 0x67);
 pub const ACCENT: Color = Color::Rgb(0xf2, 0x6d, 0x9b);
+pub const OK: Color = Color::Rgb(0x6c, 0xcf, 0x8e);
+pub const WARN: Color = Color::Rgb(0xe8, 0xb4, 0x5a);
+pub const DANGER: Color = Color::Rgb(0xec, 0x6a, 0x6a);
 
 pub fn bar() -> Style {
     Style::new().bg(SURFACE).fg(MUTED)

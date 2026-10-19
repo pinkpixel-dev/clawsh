@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 
-use super::{Click, Hits, View, truncate};
+use super::{Click, Hits, View, status_icon, truncate};
 use crate::theme;
 
 const MAX_TITLE: usize = 24;
@@ -16,7 +16,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
 
     let right = area.right();
     let mut x = area.x;
-    for (ti, title) in ws.tabs.iter().enumerate() {
+    for (ti, tab) in ws.tabs.iter().enumerate() {
         let active = ti == ws.active_tab;
         let (num, text) = if active {
             (theme::accent().bg(theme::SURFACE_ACTIVE), theme::active_row())
@@ -25,7 +25,8 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
         };
         let line = Line::from(vec![
             Span::styled(format!(" {} ", ti + 1), num),
-            Span::styled(format!("{} ", truncate(title, MAX_TITLE)), text),
+            status_icon(tab.status, view.spinner_frame),
+            Span::styled(format!(" {} ", truncate(&tab.title, MAX_TITLE)), text),
         ]);
         let width = line.width() as u16;
         // Leave room for the "+" button.

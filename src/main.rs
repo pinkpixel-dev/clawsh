@@ -4,6 +4,7 @@ mod graphics;
 mod host;
 mod pane;
 mod picker;
+mod status;
 mod theme;
 mod ui;
 mod workspace;
@@ -11,6 +12,12 @@ mod workspace;
 use anyhow::Result;
 
 fn main() -> Result<()> {
+    // Claude runs `clawsh __hook` from its hooks; that never touches the terminal.
+    if std::env::args().nth(1).as_deref() == Some(status::HOOK_ARG) {
+        status::run_hook();
+        return Ok(());
+    }
+
     // Everything after `clawsh` goes to Claude. CLAWSH_PROGRAM
     // swaps the program, which is handy for testing with a plain shell.
     let launch = app::Launch {

@@ -61,7 +61,10 @@ impl App {
                     return Ok(());
                 }
                 match self.spaces.active_tab_mut() {
-                    Some(pane) => pane.key(&k),
+                    Some(pane) => {
+                        pane.status = pane.status.seen();
+                        pane.key(&k)
+                    }
                     None => Ok(()),
                 }
             }

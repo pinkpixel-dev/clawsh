@@ -18,6 +18,7 @@ use pty::Pty;
 
 use crate::event::AppEvent;
 use crate::host::CellPx;
+use crate::status::Status;
 
 /// One running program: its PTY, its emulator, and where it is drawn.
 pub struct Pane {
@@ -27,6 +28,7 @@ pub struct Pane {
     input: InputEncoder,
     area: Rect,
     cell: CellPx,
+    pub status: Status,
 }
 
 impl Pane {
@@ -34,13 +36,14 @@ impl Pane {
         id: usize,
         program: &str,
         args: &[String],
+        env: &[(&str, String)],
         cwd: &Path,
         area: Rect,
         cell: CellPx,
         tx: Sender<AppEvent>,
     ) -> Result<Self> {
         let (cols, rows) = grid(area);
-        let pty = Pty::spawn(id, program, args, cwd, pty_size(cols, rows, cell), tx)?;
+        let pty = Pty::spawn(id, program, args, env, cwd, pty_size(cols, rows, cell), tx)?;
         let emu = Emulator::new(cols, rows, cell, pty.writer())?;
         Ok(Self {
             id,
@@ -49,6 +52,7 @@ impl Pane {
             input: InputEncoder::new()?,
             area,
             cell,
+            status: Status::Idle,
         })
     }
 

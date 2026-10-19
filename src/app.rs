@@ -2,7 +2,8 @@ mod input;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use crossterm::event::Event;
@@ -14,7 +15,8 @@ use crate::graphics::ImageBridge;
 use crate::host::{self, CellPx};
 use crate::pane::{CursorState, Pane};
 use crate::picker::Picker;
-use crate::ui::{self, Hits, View, WorkspaceView};
+use crate::status::{self, Status, StatusServer};
+use crate::ui::{self, Hits, TabView, View, WorkspaceView};
 use crate::workspace::Workspaces;
 
 pub struct Launch {
@@ -30,11 +32,19 @@ enum Mode {
     Picker(Picker),
 }
 
+/// How often to redraw while a tab is working, so its spinner moves.
+const SPINNER_TICK: Duration = Duration::from_millis(120);
+
 struct App {
     spaces: Workspaces<Pane>,
     images: ImageBridge,
     tx: Sender<AppEvent>,
     program: String,
+    /// `--settings` JSON with our status hooks; only for Claude, and only
+    /// when the status socket is up.
+    hook_settings: Option<String>,
+    status_server: Option<StatusServer>,
+    started: Instant,
     launch_dir: PathBuf,
     next_id: usize,
     cell: CellPx,
@@ -54,11 +64,21 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
 
     let show_sidebar = true;
     let areas = ui::layout(term.size()?.into(), show_sidebar);
+    // Without the socket, tabs still work; they just have no status.
+    let status_server = StatusServer::start(tx.clone()).ok();
+    let is_claude = Path::new(&launch.program).file_name().is_some_and(|n| n == "claude");
+    let hook_settings = match (&status_server, std::env::current_exe()) {
+        (Some(_), Ok(exe)) if is_claude => Some(status::hook_settings(&exe)),
+        _ => None,
+    };
     let mut app = App {
         spaces: Workspaces::new(),
         images: ImageBridge::new(),
         tx,
         program: launch.program,
+        hook_settings,
+        status_server,
+        started: Instant::now(),
         launch_dir: launch.cwd.clone(),
         next_id: 0,
         cell: CellPx::query(),
@@ -96,8 +116,9 @@ fn write_host(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn build_view<'m>(spaces: &Workspaces<Pane>, mode: &'m Mode) -> View<'m> {
+fn build_view<'m>(spaces: &Workspaces<Pane>, mode: &'m Mode, frame: usize) -> View<'m> {
     View {
+        spinner_frame: frame,
         workspaces: spaces
             .list
             .iter()
@@ -106,7 +127,10 @@ fn build_view<'m>(spaces: &Workspaces<Pane>, mode: &'m Mode) -> View<'m> {
                 tabs: ws
                     .tabs
                     .iter()
-                    .map(|p| p.title().unwrap_or_else(|| "claude".into()))
+                    .map(|p| TabView {
+                        title: p.title().unwrap_or_else(|| "claude".into()),
+                        status: p.status,
+                    })
                     .collect(),
                 active_tab: ws.active,
             })
@@ -124,7 +148,16 @@ impl App {
     fn spawn_pane(&mut self, cwd: &Path, args: &[String]) -> Result<Pane> {
         let id = self.next_id;
         self.next_id += 1;
-        Pane::spawn(id, &self.program, args, cwd, self.pane_area, self.cell, self.tx.clone())
+        let mut full_args = Vec::new();
+        if let Some(settings) = &self.hook_settings {
+            full_args.extend(["--settings".to_owned(), settings.clone()]);
+        }
+        full_args.extend_from_slice(args);
+        let mut env = vec![(status::PANE_ENV, id.to_string())];
+        if let Some(server) = &self.status_server {
+            env.push((status::SOCKET_ENV, server.path().to_string_lossy().into_owned()));
+        }
+        Pane::spawn(id, &self.program, &full_args, &env, cwd, self.pane_area, self.cell, self.tx.clone())
     }
 
     /// Switches to the workspace for `path`, starting one if it isn't open.
@@ -183,6 +216,9 @@ impl App {
         let before = self.active_id();
         change(&mut self.spaces);
         let after = self.active_id();
+        if let Some(pane) = self.spaces.active_tab_mut() {
+            pane.status = pane.status.seen();
+        }
         if before != after && self.host_focused {
             if let Some(old) = before.and_then(|id| self.spaces.find_mut(|p| p.id() == id)) {
                 old.focus(false)?;
@@ -210,7 +246,8 @@ impl App {
         }
         write_host(&out)?;
 
-        let view = build_view(&self.spaces, &self.mode);
+        let frame = (self.started.elapsed().as_millis() / SPINNER_TICK.as_millis()) as usize;
+        let view = build_view(&self.spaces, &self.mode, frame);
         let images = &self.images;
         let spaces = &mut self.spaces;
         let normal = matches!(self.mode, Mode::Normal);
@@ -250,7 +287,16 @@ impl App {
     /// Blocks for the next event, then drains whatever else is queued so a
     /// burst of output becomes one redraw.
     fn wait(&mut self, rx: &Receiver<AppEvent>) -> Result<()> {
-        let ev = rx.recv()?;
+        let working = self.spaces.list.iter().flat_map(|ws| &ws.tabs).any(|p| p.status == Status::Working);
+        let ev = if working {
+            match rx.recv_timeout(SPINNER_TICK) {
+                Ok(ev) => ev,
+                Err(RecvTimeoutError::Timeout) => return Ok(()),
+                Err(RecvTimeoutError::Disconnected) => return Err(RecvTimeoutError::Disconnected.into()),
+            }
+        } else {
+            rx.recv()?
+        };
         self.handle(ev)?;
         while let Ok(ev) = rx.try_recv() {
             self.handle(ev)?;
@@ -266,6 +312,13 @@ impl App {
                 }
             }
             AppEvent::PtyExited(id) => self.pane_exited(id)?,
+            AppEvent::Status(id, status) => {
+                // No point flagging news on the tab you're looking at.
+                let watching = self.host_focused && self.active_id() == Some(id);
+                if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
+                    pane.status = if watching { status.seen() } else { status };
+                }
+            }
             AppEvent::Input(input) => match input {
                 Event::Key(k) => self.key(k)?,
                 Event::Mouse(m) => self.mouse(m)?,

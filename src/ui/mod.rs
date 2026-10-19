@@ -8,8 +8,12 @@ mod tabbar;
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Position, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::Span;
 
 use crate::picker::Picker;
+use crate::status::Status;
+use crate::theme;
 
 const SIDEBAR_WIDTH: u16 = 26;
 /// Below this width the sidebar hides itself so the pane stays usable.
@@ -71,10 +75,26 @@ impl Hits {
     }
 }
 
+pub struct TabView {
+    pub title: String,
+    pub status: Status,
+}
+
 pub struct WorkspaceView {
     pub name: String,
-    pub tabs: Vec<String>,
+    pub tabs: Vec<TabView>,
     pub active_tab: usize,
+}
+
+impl WorkspaceView {
+    /// The most urgent status among the workspace's tabs.
+    fn status(&self) -> Status {
+        self.tabs
+            .iter()
+            .map(|t| t.status)
+            .max_by_key(|s| s.urgency())
+            .unwrap_or_default()
+    }
 }
 
 pub enum Mode<'a> {
@@ -84,6 +104,8 @@ pub enum Mode<'a> {
 }
 
 pub struct View<'a> {
+    /// Advances while anything is working, to animate the spinner.
+    pub spinner_frame: usize,
     pub workspaces: Vec<WorkspaceView>,
     pub active: usize,
     pub mode: Mode<'a>,
@@ -103,6 +125,21 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
         _ => None,
     };
     (hits, cursor)
+}
+
+const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+/// One cell that says what a tab is doing. Shapes differ as well as colors,
+/// so status never depends on color alone.
+fn status_icon(status: Status, frame: usize) -> Span<'static> {
+    let bold = Modifier::BOLD;
+    match status {
+        Status::Idle => Span::styled("○", theme::faint()),
+        Status::Working => Span::styled(SPINNER[frame % SPINNER.len()], Style::new().fg(theme::ACCENT)),
+        Status::NeedsInput => Span::styled("?", Style::new().fg(theme::WARN).add_modifier(bold)),
+        Status::Done => Span::styled("●", Style::new().fg(theme::OK)),
+        Status::Failed => Span::styled("✗", Style::new().fg(theme::DANGER).add_modifier(bold)),
+    }
 }
 
 /// Cuts `s` to `max` characters, ending with an ellipsis when it was longer.
@@ -141,6 +178,17 @@ mod tests {
         assert_eq!(h.at(3, 3), Some(Click::PickerItem(0)));
         assert_eq!(h.at(0, 0), Some(Click::NewTab));
         assert_eq!(h.at(20, 20), None);
+    }
+
+    #[test]
+    fn workspace_shows_its_most_urgent_tab() {
+        let tab = |status| TabView { title: String::new(), status };
+        let ws = WorkspaceView {
+            name: String::new(),
+            tabs: vec![tab(Status::Done), tab(Status::NeedsInput), tab(Status::Working)],
+            active_tab: 0,
+        };
+        assert_eq!(ws.status(), Status::NeedsInput);
     }
 
     #[test]

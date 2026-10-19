@@ -22,6 +22,12 @@
 - Hidden tabs keep running at full size, so switching never reflows them
 - Closing a tab removes its images from the terminal; closing the last one quits
 
+### 🚦 Status
+- Each tab shows whether Claude is idle, working, waiting on you, done, or failed, in the sidebar and the tab bar
+- Workspaces show their most urgent tab, so the one that needs you stands out
+- Done and failed clear once you open or type in that tab
+- Status comes from Claude Code hooks added per tab with `--settings`, next to your existing hooks
+
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`
 - Footer bar with the current workspace, tab, and key hints for the active mode

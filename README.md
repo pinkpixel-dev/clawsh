@@ -8,7 +8,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 
 ## Status
 
-This is early, but it's usable. You get workspaces (one per folder) with as many Claude tabs as you want in each, a sidebar and tab bar you can click, and kitty images from Claude and its mods passed through to your terminal. Status badges and usage limits are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
+This is early, but it's usable. You get workspaces (one per folder) with as many Claude tabs as you want in each, a sidebar and tab bar you can click, and kitty images from Claude and its mods passed through to your terminal. Each tab shows what its Claude is doing, so you can tell at a glance which project needs you. Usage limits are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
 
 I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
 
@@ -55,6 +55,22 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
+
+### Tab status
+
+Every tab has a little status icon in the sidebar and the tab bar, and each workspace shows its most urgent one:
+
+| Icon | Meaning |
+|---|---|
+| `○` | Idle |
+| spinner | Claude is working |
+| `?` | Claude is waiting on you: a permission prompt or a question |
+| `●` | Claude finished while you were looking somewhere else |
+| `✗` | The turn failed (an API error, for example) |
+
+`●` and `✗` clear once you switch to that tab or type in it.
+
+This works through Claude Code hooks. Claw$h starts each Claude tab with `claude --settings '…'`, which adds a few hooks that run `clawsh __hook` and report back over a local socket. Those hooks are added next to your own hooks, not instead of them, and nothing in your Claude config gets changed. If you set `CLAWSH_PROGRAM` to something other than `claude`, the hooks are left off.
 
 You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace`.
 

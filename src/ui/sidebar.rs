@@ -4,7 +4,8 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders};
 
-use super::{Click, Hits, View, truncate};
+use super::{Click, Hits, View, status_icon, truncate};
+use crate::status::Status;
 use crate::theme;
 
 pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
@@ -34,13 +35,20 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
         } else {
             (Span::raw("   "), theme::panel())
         };
-        let name = Span::styled(truncate(&ws.name, width.saturating_sub(3)), style);
+        let name = Span::styled(truncate(&ws.name, width.saturating_sub(5)), style);
         buf.set_style(row, if active { theme::active_row() } else { theme::panel() });
         buf.set_line(inner.x, y, &Line::from(vec![marker, name]), inner.width);
+        // The workspace's most urgent status, right-aligned, so a collapsed
+        // glance at the sidebar still shows which project wants you.
+        let summary = ws.status();
+        if summary != Status::Idle && inner.width > 2 {
+            let icon = Line::from(status_icon(summary, view.spinner_frame));
+            buf.set_line(inner.right() - 2, y, &icon, 1);
+        }
         hits.push(row, Click::Workspace(wi));
         y += 1;
 
-        for (ti, title) in ws.tabs.iter().enumerate() {
+        for (ti, tab) in ws.tabs.iter().enumerate() {
             if y >= bottom {
                 break;
             }
@@ -51,8 +59,10 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
                 theme::muted()
             };
             let line = Line::from(vec![
-                Span::styled("   ○ ", theme::faint()),
-                Span::styled(truncate(title, width.saturating_sub(5)), style),
+                Span::raw("   "),
+                status_icon(tab.status, view.spinner_frame),
+                Span::raw(" "),
+                Span::styled(truncate(&tab.title, width.saturating_sub(5)), style),
             ]);
             buf.set_line(inner.x, y, &line, inner.width);
             hits.push(Rect::new(inner.x, y, inner.width, 1), Click::Tab(wi, ti));

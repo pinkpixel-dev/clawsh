@@ -1,0 +1,268 @@
+//! What each Claude tab is doing, learned from Claude Code hooks.
+//!
+//! Every tab is launched with `claude --settings '<json>'`, which adds hooks
+//! that run `clawsh __hook`. That hook reads Claude's JSON on stdin, turns it
+//! into a [`Status`], and sends `"<pane> <status>"` to the app's Unix socket.
+//! Settings hooks merge with the user's own, so nothing else is replaced.
+
+use std::io::{BufRead, BufReader, Read, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
+use std::thread;
+use std::time::Duration;
+
+use serde_json::{Value, json};
+
+use crate::event::AppEvent;
+
+pub const PANE_ENV: &str = "CLAWSH_PANE";
+pub const SOCKET_ENV: &str = "CLAWSH_SOCKET";
+
+/// The subcommand the hooks run. Unlikely to clash with a real Claude argument.
+pub const HOOK_ARG: &str = "__hook";
+
+/// Hook events that change a tab's status.
+const EVENTS: &[&str] = &[
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "PermissionRequest",
+    "Notification",
+    "Stop",
+    "StopFailure",
+];
+
+/// Notification types that mean Claude is waiting on the person.
+const INPUT_NOTIFICATIONS: &[&str] = &[
+    "permission_prompt",
+    "elicitation_dialog",
+    "elicitation_url_dialog",
+    "agent_needs_input",
+];
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Status {
+    #[default]
+    Idle,
+    Working,
+    NeedsInput,
+    Done,
+    Failed,
+}
+
+impl Status {
+    fn as_str(self) -> &'static str {
+        match self {
+            Status::Idle => "idle",
+            Status::Working => "working",
+            Status::NeedsInput => "input",
+            Status::Done => "done",
+            Status::Failed => "failed",
+        }
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "idle" => Status::Idle,
+            "working" => Status::Working,
+            "input" => Status::NeedsInput,
+            "done" => Status::Done,
+            "failed" => Status::Failed,
+            _ => return None,
+        })
+    }
+
+    /// Done and Failed are news; once you've looked at the tab they're not.
+    pub fn seen(self) -> Self {
+        match self {
+            Status::Done | Status::Failed => Status::Idle,
+            other => other,
+        }
+    }
+
+    /// Which status a workspace shows when its tabs disagree.
+    pub fn urgency(self) -> u8 {
+        match self {
+            Status::Idle => 0,
+            Status::Done => 1,
+            Status::Working => 2,
+            Status::Failed => 3,
+            Status::NeedsInput => 4,
+        }
+    }
+}
+
+/// Maps one hook payload to a status. `None` leaves the tab as it was.
+pub fn classify(input: &Value) -> Option<Status> {
+    let event = input.get("hook_event_name")?.as_str()?;
+    let tool = input.get("tool_name").and_then(Value::as_str);
+    Some(match event {
+        "SessionStart" => Status::Idle,
+        "UserPromptSubmit" | "PostToolUse" | "PostToolUseFailure" => Status::Working,
+        "PreToolUse" if tool == Some("AskUserQuestion") => Status::NeedsInput,
+        "PreToolUse" => Status::Working,
+        "PermissionRequest" => Status::NeedsInput,
+        "Notification" => {
+            let kind = input.get("notification_type").and_then(Value::as_str)?;
+            if !INPUT_NOTIFICATIONS.contains(&kind) {
+                return None;
+            }
+            Status::NeedsInput
+        }
+        "Stop" => Status::Done,
+        "StopFailure" => Status::Failed,
+        _ => return None,
+    })
+}
+
+/// The `--settings` JSON that adds our hooks for every status event.
+pub fn hook_settings(exe: &Path) -> String {
+    let command = format!("{} {HOOK_ARG}", shell_quote(&exe.to_string_lossy()));
+    let group = json!([{ "hooks": [{ "type": "command", "command": command, "timeout": 5 }] }]);
+    let hooks: serde_json::Map<String, Value> = EVENTS
+        .iter()
+        .map(|e| (e.to_string(), group.clone()))
+        .collect();
+    json!({ "hooks": hooks }).to_string()
+}
+
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// `clawsh __hook`: report one hook event and get out of Claude's way.
+/// Never prints and never fails, whatever happens.
+pub fn run_hook() {
+    let mut raw = String::new();
+    let _ = std::io::stdin().take(1 << 20).read_to_string(&mut raw);
+    let (Ok(pane), Ok(socket)) = (std::env::var(PANE_ENV), std::env::var(SOCKET_ENV)) else {
+        return;
+    };
+    let Some(status) = serde_json::from_str(&raw).ok().as_ref().and_then(classify) else {
+        return;
+    };
+    if let Ok(mut stream) = UnixStream::connect(socket) {
+        let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
+        let _ = writeln!(stream, "{pane} {}", status.as_str());
+    }
+}
+
+/// Listens for hook reports. The socket file is removed when this drops.
+pub struct StatusServer {
+    path: PathBuf,
+}
+
+impl StatusServer {
+    pub fn start(tx: Sender<AppEvent>) -> std::io::Result<Self> {
+        let dir = std::env::var_os("XDG_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        let path = dir.join(format!("clawsh-{}.sock", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let listener = UnixListener::bind(&path)?;
+
+        thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                for line in BufReader::new(stream).lines().map_while(Result::ok) {
+                    if let Some((pane, status)) = parse_report(&line)
+                        && tx.send(AppEvent::Status(pane, status)).is_err()
+                    {
+                        return;
+                    }
+                }
+            }
+        });
+        Ok(Self { path })
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for StatusServer {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn parse_report(line: &str) -> Option<(usize, Status)> {
+    let (pane, status) = line.trim().split_once(' ')?;
+    Some((pane.parse().ok()?, Status::parse(status)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    fn ev(v: Value) -> Option<Status> {
+        classify(&v)
+    }
+
+    #[test]
+    fn hook_events_map_to_statuses() {
+        assert_eq!(ev(json!({"hook_event_name": "UserPromptSubmit"})), Some(Status::Working));
+        assert_eq!(ev(json!({"hook_event_name": "Stop"})), Some(Status::Done));
+        assert_eq!(ev(json!({"hook_event_name": "PermissionRequest"})), Some(Status::NeedsInput));
+        assert_eq!(
+            ev(json!({"hook_event_name": "PreToolUse", "tool_name": "AskUserQuestion"})),
+            Some(Status::NeedsInput)
+        );
+        assert_eq!(
+            ev(json!({"hook_event_name": "PreToolUse", "tool_name": "Bash"})),
+            Some(Status::Working)
+        );
+        assert_eq!(
+            ev(json!({"hook_event_name": "Notification", "notification_type": "permission_prompt"})),
+            Some(Status::NeedsInput)
+        );
+        assert_eq!(
+            ev(json!({"hook_event_name": "Notification", "notification_type": "idle_prompt"})),
+            None
+        );
+        assert_eq!(ev(json!({"hook_event_name": "SubagentStop"})), None);
+        assert_eq!(ev(json!({"nope": 1})), None);
+    }
+
+    #[test]
+    fn settings_json_has_a_hook_per_event() {
+        let s: Value = serde_json::from_str(&hook_settings(Path::new("/opt/it's here/clawsh"))).unwrap();
+        let hooks = s["hooks"].as_object().unwrap();
+        assert_eq!(hooks.len(), EVENTS.len());
+        let cmd = hooks["Stop"][0]["hooks"][0]["command"].as_str().unwrap();
+        assert_eq!(cmd, r"'/opt/it'\''s here/clawsh' __hook");
+    }
+
+    #[test]
+    fn reports_round_trip_over_the_socket() {
+        let (tx, rx) = mpsc::channel();
+        let server = StatusServer::start(tx).unwrap();
+        let mut stream = UnixStream::connect(server.path()).unwrap();
+        writeln!(stream, "7 input").unwrap();
+        writeln!(stream, "garbage").unwrap();
+        writeln!(stream, "3 done").unwrap();
+        drop(stream);
+        let got: Vec<(usize, Status)> = (0..2)
+            .map(|_| match rx.recv_timeout(Duration::from_secs(2)).unwrap() {
+                AppEvent::Status(p, s) => (p, s),
+                _ => panic!("unexpected event"),
+            })
+            .collect();
+        assert_eq!(got, [(7, Status::NeedsInput), (3, Status::Done)]);
+        let path = server.path().to_path_buf();
+        drop(server);
+        assert!(!path.exists(), "socket cleaned up");
+    }
+
+    #[test]
+    fn urgent_states_win_and_news_clears() {
+        assert!(Status::NeedsInput.urgency() > Status::Working.urgency());
+        assert!(Status::Working.urgency() > Status::Done.urgency());
+        assert_eq!(Status::Done.seen(), Status::Idle);
+        assert_eq!(Status::Working.seen(), Status::Working);
+    }
+}
