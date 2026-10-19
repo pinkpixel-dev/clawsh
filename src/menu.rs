@@ -35,6 +35,8 @@ pub enum Choice {
     Review,
     /// Every tab at a glance.
     Radar,
+    /// Search every saved conversation.
+    Search,
     ToggleOrder,
     ToggleNotifications,
     ToggleSidebar,
@@ -154,6 +156,7 @@ impl Menu {
             Item::new("Insert snippet", Choice::Snippet).key("i"),
             Item::new("Review changes", Choice::Review).key("r"),
             Item::new("Radar", Choice::Radar).key("v"),
+            Item::new("Search conversations", Choice::Search).key("/"),
         ]);
         if tab.is_some() {
             items.push(Item::new("Copy mode", Choice::CopyMode).key("["));

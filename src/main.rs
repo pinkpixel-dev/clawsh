@@ -12,6 +12,7 @@ mod shm;
 mod snippet;
 mod picker;
 mod review;
+mod search;
 mod status;
 mod template;
 mod theme;

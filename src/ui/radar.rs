@@ -103,7 +103,7 @@ pub fn draw(buf: &mut Buffer, screen: Rect, view: &View, selected: Option<usize>
 }
 
 /// How long ago, in the largest whole unit: `now`, `5m`, `3h`, `2d`.
-fn age(idle_for: Option<Duration>) -> String {
+pub(super) fn age(idle_for: Option<Duration>) -> String {
     let Some(secs) = idle_for.map(|d| d.as_secs()) else {
         return String::new();
     };

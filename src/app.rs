@@ -4,6 +4,7 @@ mod menu;
 mod palette;
 mod radar;
 mod review;
+mod search;
 mod session;
 mod snippets;
 mod templates;
@@ -27,6 +28,7 @@ use crate::pane::{CursorState, Pane};
 use crate::notify;
 use crate::persist::{self, Saved};
 use crate::picker::Picker;
+use crate::search::Search;
 use crate::status::{self, Status, StatusServer};
 use crate::theme;
 use crate::ui::drawer::{DEFAULT_PERCENT, DividerView, Side};
@@ -61,6 +63,8 @@ enum Mode {
     Review,
     /// Every tab at a glance (`ctrl+b v`), with the selected row's pane id.
     Radar(Option<usize>),
+    /// Searching saved conversations (`ctrl+b /`).
+    Search(Search),
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -251,6 +255,7 @@ fn build_view<'m>(
             Mode::Menu(menu) => ui::Mode::Menu(menu),
             Mode::Picker(p) => ui::Mode::Picker(p),
             Mode::Radar(selected) => ui::Mode::Radar(*selected),
+            Mode::Search(search) => ui::Mode::Search(search),
             Mode::Review => ui::Mode::Review(
                 spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),
             ),
@@ -592,6 +597,16 @@ impl App {
                 if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
                     pane.session = Some(session);
                     pane.refresh_transcript_title();
+                }
+            }
+            AppEvent::SearchHit(generation, hit) => {
+                if let Mode::Search(search) = &mut self.mode {
+                    search.add(generation, *hit);
+                }
+            }
+            AppEvent::SearchDone(generation) => {
+                if let Mode::Search(search) = &mut self.mode {
+                    search.finish(generation);
                 }
             }
             AppEvent::Usage(report) => self.usage = Some(report),

@@ -151,6 +151,7 @@ impl App {
             Choice::Snippet => self.open_snippet_picker(),
             Choice::Review => self.open_review(),
             Choice::Radar => self.open_radar(),
+            Choice::Search => self.open_search(),
             Choice::ToggleOrder => self.by_activity = !self.by_activity,
             Choice::ToggleNotifications => self.notifications = !self.notifications,
             Choice::ToggleSidebar => self.show_sidebar = !self.show_sidebar,

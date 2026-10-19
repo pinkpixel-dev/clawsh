@@ -1,5 +1,5 @@
 //! Claw$h's own chrome: sidebar, tab bar, footer, the folder picker, the
-//! radar, and pop-up menus.
+//! radar, conversation search, and pop-up menus.
 //! Pane contents are drawn by the panes themselves.
 
 mod activity;
@@ -9,6 +9,7 @@ mod menu;
 mod picker;
 mod radar;
 pub mod review;
+mod search;
 mod sidebar;
 mod tabbar;
 mod usage;
@@ -21,6 +22,7 @@ use ratatui::text::Span;
 
 use crate::menu::Menu;
 use crate::picker::Picker;
+use crate::search::Search;
 use crate::status::Status;
 use crate::theme;
 use crate::usage::Report;
@@ -78,6 +80,10 @@ pub enum Click {
     RadarItem(usize),
     /// Inside the radar, but not on a row.
     RadarBackground,
+    /// A conversation search result, by its place in the list.
+    SearchItem(usize),
+    /// Inside the search, but not on a result.
+    SearchBackground,
 }
 
 /// Clickable regions from the last frame (later entries sit on top), plus
@@ -150,6 +156,8 @@ pub enum Mode<'a> {
     Review(bool),
     /// The radar, with the selected row's pane id.
     Radar(Option<usize>),
+    /// Conversation search (`ctrl+b /`).
+    Search(&'a Search),
 }
 
 pub struct View<'a> {
@@ -201,6 +209,10 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
             let screen = frame.area();
             radar::draw(frame.buffer_mut(), screen, view, selected, &mut hits);
             None
+        }
+        Mode::Search(search) => {
+            let screen = frame.area();
+            Some(search::draw(frame.buffer_mut(), screen, search, &mut hits))
         }
         _ => rename_cursor.or(footer_cursor),
     };

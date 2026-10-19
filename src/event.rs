@@ -2,6 +2,7 @@ use libghostty_vt::style::RgbColor;
 use libghostty_vt::terminal::ColorScheme;
 
 use crate::persist::SessionRef;
+use crate::search::Hit;
 use crate::status::Status;
 use crate::usage::Report;
 
@@ -17,6 +18,10 @@ pub enum AppEvent {
     Turn(usize, String),
     /// A Claude hook reported which conversation a pane is in.
     Session(usize, SessionRef),
+    /// A conversation search found a match; the number says which search.
+    SearchHit(u64, Box<Hit>),
+    /// That conversation search looked at every transcript.
+    SearchDone(u64),
     /// A fresh reading of Claude's usage limits.
     Usage(Report),
     /// The host terminal switched between light and dark (mode 2031).

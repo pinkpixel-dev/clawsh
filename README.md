@@ -20,6 +20,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 - **[Tab status](#tab-status).** See which tab is working, waiting on you, done, or failed, with desktop notifications for the ones you aren't looking at and a radar that lists every tab at once.
 - **[Usage limits](#usage-limits).** Your Claude 5-hour and weekly windows at the bottom of the sidebar.
 - **[Sessions that come back](#picking-up-where-you-left-off).** Workspaces, tabs, and conversations reopen on the next launch.
+- **[Conversation search](#finding-an-old-conversation).** Search every saved Claude conversation across all your projects and resume the one you want.
 - **[Review view](#reviewing-changes).** Look over what Claude changed (everything uncommitted, or just the last turn), comment on lines, and send the comments back.
 - **[Workspace templates](#workspace-templates)** and **[prompt snippets](#prompt-snippets)** for the setups and prompts you repeat.
 - **[Terminal drawer](#terminal-drawer).** A shell under (or beside) each tab for your dev server and quick commands.
@@ -109,6 +110,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `[` | Copy mode: select text with the keyboard, including the scrollback |
 | `r` | Review what changed in this tab's folder and comment on it |
 | `v` | Radar: every tab in every workspace, whatever needs you first |
+| `/` | Search every saved conversation and resume one |
 | `,` | Rename the current tab |
 | `t` | Open a workspace template |
 | `T` | Save the current workspace as a template |
@@ -123,6 +125,14 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 ### Picking up where you left off
 
 Claw$h remembers your workspaces, their tabs, and which conversation each tab was in. Next time you start it, everything comes back, and each tab reopens its conversation with `claude --resume`. A tab that never got a prompt just starts a fresh Claude, since there's nothing to resume yet. Folders that have been deleted are skipped, and the folder you launched from is added if it wasn't already open.
+
+### Finding an old conversation
+
+Press `ctrl+b` then `/` to search every conversation Claude has saved, in every project, not just the ones open right now. Type what you remember and press enter. Results show up as they're found, newest first, one per conversation: its title, project folder, how long ago it was last touched, and the first matching line with the match underlined (plus a `+3` style count when more messages matched).
+
+It searches what you typed and what Claude wrote back. Tool calls, file contents, and command output are skipped, and so are subagent transcripts. Matching ignores case. Nothing gets indexed or copied anywhere: each search just reads the transcript files in `~/.claude/projects` (or `$CLAUDE_CONFIG_DIR/projects`). On my machine that's a couple hundred transcripts and it finishes in well under a second.
+
+Move with the arrows and press enter (or click a result) to go back to it. If that conversation is already open in a tab, Claw$h just switches to it. Otherwise it opens a new tab running `claude --resume` in the conversation's folder, opening that folder as a workspace first if needed. Conversations whose folder has been deleted are left out, since they can't be resumed there. Change the query and enter searches again, and `esc` closes it. It's in the main menu and the palette too.
 
 It's saved to `~/.local/state/clawsh/session.json` (or `$XDG_STATE_HOME/clawsh/session.json`) every time something changes, so closing the window or a crash doesn't lose anything. Closing every tab leaves you with a clean slate next time.
 
@@ -281,7 +291,7 @@ You can click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a
 
 Right-click a tab or a workspace for a small menu with New tab, Rename, and Close. Closing always asks first, and the confirmation starts on Cancel, so hitting enter by accident doesn't kill anything. Renaming a workspace only changes the name Claw$h shows. The folder stays put, and clearing the name goes back to the folder's name.
 
-The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, the radar, copy mode, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
+The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, the radar, conversation search, copy mode, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
 
 Right-clicks inside the pane still go to Claude, so its own mouse handling isn't affected.
 

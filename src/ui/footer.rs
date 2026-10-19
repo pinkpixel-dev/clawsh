@@ -49,6 +49,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
             ("[", "copy"),
             ("r", "review"),
             ("v", "radar"),
+            ("/", "search"),
             (",", "rename"),
             ("t/T", "templates"),
             ("i", "snippet"),
@@ -67,6 +68,8 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
         Mode::RenameWorkspace(_) => &[("enter", "save"), ("empty", "folder name"), ("esc", "cancel")],
         Mode::Menu(_) => &[("enter", "choose"), ("↑↓", "move"), ("esc", "close")],
         Mode::Radar(_) => &[("enter", "jump"), ("r", "review turn"), ("↑↓", "move"), ("esc", "close")],
+        Mode::Search(s) if s.stale() => &[("enter", "search"), ("↑↓", "move"), ("esc", "close")],
+        Mode::Search(_) => &[("enter", "resume"), ("↑↓", "move"), ("esc", "close")],
         Mode::Review(true) => &[("enter", "save"), ("empty", "delete"), ("esc", "cancel")],
         Mode::Review(false) => &[
             ("u/t", "scope"),

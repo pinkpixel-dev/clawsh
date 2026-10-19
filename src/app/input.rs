@@ -37,6 +37,7 @@ pub(super) enum Action {
     Menu,
     Palette,
     Radar,
+    Search,
     Terminal,
     SwapFocus,
     Quit,
@@ -71,6 +72,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('o') => Action::Menu,
         KeyCode::Char(' ') => Action::Palette,
         KeyCode::Char('v') => Action::Radar,
+        KeyCode::Char('/') => Action::Search,
         KeyCode::Char('e') => Action::Terminal,
         KeyCode::Char(';') => Action::SwapFocus,
         KeyCode::Char('q') => Action::Quit,
@@ -200,6 +202,7 @@ impl App {
             }
             Mode::Menu(_) => self.menu_key(&k),
             Mode::Radar(_) => self.radar_key(&k),
+            Mode::Search(_) => self.search_key(&k),
             Mode::SaveTemplate(text) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -263,6 +266,7 @@ impl App {
             Action::Menu => self.open_main_menu(),
             Action::Palette => self.open_palette(),
             Action::Radar => self.open_radar(),
+            Action::Search => self.open_search(),
             Action::Terminal => {
                 if let Some(id) = self.active_id() {
                     self.toggle_terminal(id)?;
@@ -335,6 +339,9 @@ impl App {
 
         if matches!(self.mode, Mode::Radar(_)) {
             return self.radar_mouse(&m, hit);
+        }
+        if matches!(self.mode, Mode::Search(_)) {
+            return self.search_mouse(&m, hit);
         }
 
         // While the divider is held, the pointer only resizes.
@@ -424,7 +431,9 @@ impl App {
             | Click::MenuItem(_)
             | Click::MenuBackground
             | Click::RadarItem(_)
-            | Click::RadarBackground => Ok(()),
+            | Click::RadarBackground
+            | Click::SearchItem(_)
+            | Click::SearchBackground => Ok(()),
         }
     }
 
@@ -446,6 +455,10 @@ impl App {
                 if let Some(review) = self.spaces.active_tab_mut().and_then(|p| p.review.as_mut()) {
                     review.paste(text);
                 }
+                Ok(())
+            }
+            Mode::Search(search) => {
+                search.query.extend(text.lines().next().unwrap_or("").chars().filter(|c| !c.is_control()));
                 Ok(())
             }
             // Nothing to type into.
@@ -496,6 +509,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('o'))), Some(Action::Menu));
         assert_eq!(prefix_action(&key(KeyCode::Char(' '))), Some(Action::Palette));
         assert_eq!(prefix_action(&key(KeyCode::Char('v'))), Some(Action::Radar));
+        assert_eq!(prefix_action(&key(KeyCode::Char('/'))), Some(Action::Search));
         assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
         assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(

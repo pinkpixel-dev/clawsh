@@ -16,6 +16,14 @@
 - Enter or a click jumps to the tab, and `r` jumps there and opens the review on its last turn
 - Also in the main menu as Radar, which puts it in the command palette too
 
+### 🔎 Conversation search
+- `ctrl+b /` searches every saved Claude conversation across all projects, not just the open tabs
+- It matches your prompts and Claude's replies, ignoring case. Tool calls, tool output, and subagent transcripts are skipped
+- Results stream in newest first, one per conversation, with its title, project folder, age, and the first matching line with the match underlined
+- Enter or a click resumes it with `claude --resume` in its folder, opening the workspace if needed, or just switches if that conversation is already in a tab
+- No index: each search reads the transcript files directly on background threads
+- Also in the main menu as Search conversations, which puts it in the command palette too
+
 ### 🐛 Fixes
 - Quitting Claude with a double `ctrl+c` (or `/exit`) no longer closes the workspace. If it was the workspace's last tab, a fresh Claude starts in its place
 
