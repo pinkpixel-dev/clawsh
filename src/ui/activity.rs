@@ -51,7 +51,7 @@ pub fn title_style(tab: &TabView, current: bool) -> Style {
 }
 
 /// Sorts by what's happening (needs input first), then by how recently.
-fn tab_key(tab: &TabView) -> (u8, Reverse<Duration>) {
+pub(super) fn tab_key(tab: &TabView) -> (u8, Reverse<Duration>) {
     (tab.status.urgency(), Reverse(tab.idle_for.unwrap_or(Duration::MAX)))
 }
 
@@ -86,6 +86,7 @@ mod tests {
 
     fn tab(status: Status, mins: Option<u64>) -> TabView {
         TabView {
+            id: 0,
             title: String::new(),
             status,
             idle_for: mins.map(|m| Duration::from_secs(m * 60)),

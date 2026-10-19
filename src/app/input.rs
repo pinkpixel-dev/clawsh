@@ -36,6 +36,7 @@ pub(super) enum Action {
     Snippet,
     Menu,
     Palette,
+    Radar,
     Terminal,
     SwapFocus,
     Quit,
@@ -69,6 +70,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('i') => Action::Snippet,
         KeyCode::Char('o') => Action::Menu,
         KeyCode::Char(' ') => Action::Palette,
+        KeyCode::Char('v') => Action::Radar,
         KeyCode::Char('e') => Action::Terminal,
         KeyCode::Char(';') => Action::SwapFocus,
         KeyCode::Char('q') => Action::Quit,
@@ -197,6 +199,7 @@ impl App {
                 Ok(())
             }
             Mode::Menu(_) => self.menu_key(&k),
+            Mode::Radar(_) => self.radar_key(&k),
             Mode::SaveTemplate(text) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -259,6 +262,7 @@ impl App {
             Action::Snippet => self.open_snippet_picker(),
             Action::Menu => self.open_main_menu(),
             Action::Palette => self.open_palette(),
+            Action::Radar => self.open_radar(),
             Action::Terminal => {
                 if let Some(id) = self.active_id() {
                     self.toggle_terminal(id)?;
@@ -327,6 +331,10 @@ impl App {
                 _ => {}
             }
             return Ok(());
+        }
+
+        if matches!(self.mode, Mode::Radar(_)) {
+            return self.radar_mouse(&m, hit);
         }
 
         // While the divider is held, the pointer only resizes.
@@ -411,7 +419,12 @@ impl App {
                 self.resizing = true;
                 Ok(())
             }
-            Click::PickerItem(_) | Click::PickerBackground | Click::MenuItem(_) | Click::MenuBackground => Ok(()),
+            Click::PickerItem(_)
+            | Click::PickerBackground
+            | Click::MenuItem(_)
+            | Click::MenuBackground
+            | Click::RadarItem(_)
+            | Click::RadarBackground => Ok(()),
         }
     }
 
@@ -435,6 +448,8 @@ impl App {
                 }
                 Ok(())
             }
+            // Nothing to type into.
+            Mode::Radar(_) => Ok(()),
             _ => match self.focused_pane_mut() {
                 Some(pane) => pane.paste(text),
                 None => Ok(()),
@@ -480,6 +495,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('i'))), Some(Action::Snippet));
         assert_eq!(prefix_action(&key(KeyCode::Char('o'))), Some(Action::Menu));
         assert_eq!(prefix_action(&key(KeyCode::Char(' '))), Some(Action::Palette));
+        assert_eq!(prefix_action(&key(KeyCode::Char('v'))), Some(Action::Radar));
         assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
         assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(

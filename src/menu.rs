@@ -33,6 +33,8 @@ pub enum Choice {
     SaveTemplate,
     Snippet,
     Review,
+    /// Every tab at a glance.
+    Radar,
     ToggleOrder,
     ToggleNotifications,
     ToggleSidebar,
@@ -151,6 +153,7 @@ impl Menu {
             Item::new("Save template", Choice::SaveTemplate).key("T"),
             Item::new("Insert snippet", Choice::Snippet).key("i"),
             Item::new("Review changes", Choice::Review).key("r"),
+            Item::new("Radar", Choice::Radar).key("v"),
         ]);
         if tab.is_some() {
             items.push(Item::new("Copy mode", Choice::CopyMode).key("["));

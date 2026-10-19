@@ -1,5 +1,5 @@
-//! Claw$h's own chrome: sidebar, tab bar, footer, the folder picker, and
-//! pop-up menus.
+//! Claw$h's own chrome: sidebar, tab bar, footer, the folder picker, the
+//! radar, and pop-up menus.
 //! Pane contents are drawn by the panes themselves.
 
 mod activity;
@@ -7,6 +7,7 @@ pub mod drawer;
 mod footer;
 mod menu;
 mod picker;
+mod radar;
 pub mod review;
 mod sidebar;
 mod tabbar;
@@ -73,6 +74,10 @@ pub enum Click {
     Terminal,
     /// The line between Claude and the terminal drawer, for resizing.
     Divider,
+    /// A radar row, by pane id.
+    RadarItem(usize),
+    /// Inside the radar, but not on a row.
+    RadarBackground,
 }
 
 /// Clickable regions from the last frame (later entries sit on top), plus
@@ -85,6 +90,8 @@ pub struct Hits {
     /// The scroll offset the sidebar actually used, after clamping and
     /// following the active tab.
     pub sidebar_scroll: usize,
+    /// Pane ids in the order the radar listed them, for its arrow keys.
+    pub radar: Vec<usize>,
 }
 
 impl Hits {
@@ -102,6 +109,8 @@ impl Hits {
 }
 
 pub struct TabView {
+    /// The pane id, so the radar can name a tab that moves.
+    pub id: usize,
     pub title: String,
     pub status: Status,
     /// How long since the tab last did anything; `None` when unknown.
@@ -139,6 +148,8 @@ pub enum Mode<'a> {
     Menu(&'a Menu),
     /// The review view; `true` while a comment is being typed.
     Review(bool),
+    /// The radar, with the selected row's pane id.
+    Radar(Option<usize>),
 }
 
 pub struct View<'a> {
@@ -184,6 +195,11 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
         Mode::Picker(p) => Some(picker::draw(frame, p, &mut hits)),
         Mode::Menu(m) => {
             menu::draw(frame, m, &mut hits);
+            None
+        }
+        Mode::Radar(selected) => {
+            let screen = frame.area();
+            radar::draw(frame.buffer_mut(), screen, view, selected, &mut hits);
             None
         }
         _ => rename_cursor.or(footer_cursor),
@@ -246,7 +262,7 @@ mod tests {
 
     #[test]
     fn workspace_shows_its_most_urgent_tab() {
-        let tab = |status| TabView { title: String::new(), status, idle_for: None };
+        let tab = |status| TabView { id: 0, title: String::new(), status, idle_for: None };
         let ws = WorkspaceView {
             name: String::new(),
             tabs: vec![tab(Status::Done), tab(Status::NeedsInput), tab(Status::Working)],

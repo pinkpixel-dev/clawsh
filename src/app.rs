@@ -2,6 +2,7 @@ mod drawer;
 mod input;
 mod menu;
 mod palette;
+mod radar;
 mod review;
 mod session;
 mod snippets;
@@ -58,6 +59,8 @@ enum Mode {
     Menu(Menu),
     /// The active pane's review view covers the pane area (`ctrl+b r`).
     Review,
+    /// Every tab at a glance (`ctrl+b v`), with the selected row's pane id.
+    Radar(Option<usize>),
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -228,6 +231,7 @@ fn build_view<'m>(
                     .tabs
                     .iter()
                     .map(|p| TabView {
+                        id: p.id(),
                         title: p.title(),
                         status: p.status,
                         idle_for: SystemTime::now().duration_since(p.last_active).ok(),
@@ -246,6 +250,7 @@ fn build_view<'m>(
             Mode::RenameWorkspace(_, text) => ui::Mode::RenameWorkspace(text),
             Mode::Menu(menu) => ui::Mode::Menu(menu),
             Mode::Picker(p) => ui::Mode::Picker(p),
+            Mode::Radar(selected) => ui::Mode::Radar(*selected),
             Mode::Review => ui::Mode::Review(
                 spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),
             ),

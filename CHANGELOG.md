@@ -9,6 +9,13 @@
 - Picking a tab or workspace switches to it, and closing things from the palette still asks first
 - Also in the main menu as Command palette, and listed first in the `ctrl+b` footer hints
 
+### 📡 Radar
+- `ctrl+b v` opens a list of every tab in every workspace, with whatever needs you first and then the most recently busy
+- Each row shows the tab's status icon, title, workspace, and how long ago it last did something, plus a count of tabs per status at the bottom
+- It stays live while open, so statuses and ages update as tabs change
+- Enter or a click jumps to the tab, and `r` jumps there and opens the review on its last turn
+- Also in the main menu as Radar, which puts it in the command palette too
+
 ### 🐛 Fixes
 - Quitting Claude with a double `ctrl+c` (or `/exit`) no longer closes the workspace. If it was the workspace's last tab, a fresh Claude starts in its place
 

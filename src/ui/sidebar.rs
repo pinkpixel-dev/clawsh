@@ -148,7 +148,7 @@ mod tests {
 
     /// Ten workspaces with two tabs each: 10 * 3 rows + 9 gaps = 39 rows.
     fn view(active: usize, scroll: usize, follow: bool) -> View<'static> {
-        let tab = |t: &str| TabView { title: t.into(), status: Status::Idle, idle_for: None };
+        let tab = |t: &str| TabView { id: 0, title: t.into(), status: Status::Idle, idle_for: None };
         View {
             notice: None,
             spinner_frame: 0,

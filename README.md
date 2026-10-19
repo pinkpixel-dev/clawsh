@@ -17,7 +17,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 ## Features
 
 - **Workspaces and tabs.** One workspace per folder, as many Claude tabs as you want in each, and a sidebar and tab bar you can click.
-- **[Tab status](#tab-status).** See which tab is working, waiting on you, done, or failed, with desktop notifications for the ones you aren't looking at.
+- **[Tab status](#tab-status).** See which tab is working, waiting on you, done, or failed, with desktop notifications for the ones you aren't looking at and a radar that lists every tab at once.
 - **[Usage limits](#usage-limits).** Your Claude 5-hour and weekly windows at the bottom of the sidebar.
 - **[Sessions that come back](#picking-up-where-you-left-off).** Workspaces, tabs, and conversations reopen on the next launch.
 - **[Review view](#reviewing-changes).** Look over what Claude changed (everything uncommitted, or just the last turn), comment on lines, and send the comments back.
@@ -108,6 +108,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `a` | Sort the sidebar by activity, or back to open order |
 | `[` | Copy mode: select text with the keyboard, including the scrollback |
 | `r` | Review what changed in this tab's folder and comment on it |
+| `v` | Radar: every tab in every workspace, whatever needs you first |
 | `,` | Rename the current tab |
 | `t` | Open a workspace template |
 | `T` | Save the current workspace as a template |
@@ -150,6 +151,8 @@ Every tab has a little status icon in the sidebar and the tab bar, and each work
 In the sidebar, tab titles take their status color too. Idle tabs fade as they sit: for the first 15 minutes after a turn they look just stopped, then they go muted, and after 2 hours the row dims. That makes it pretty easy to tell the tab you just used from the one you forgot about on Tuesday.
 
 Press `ctrl+b` then `a` to sort the sidebar by activity: whatever's waiting on you first, then working tabs, then the rest by how recently they did something, with workspaces ordered by their busiest tab. It only changes the sidebar. The tab bar and `ctrl+b 1` to `9` keep the order you opened things in, so the number keys never move under you. Press it again for open order. Like notifications, the choice is remembered.
+
+For a quick look across everything, press `ctrl+b` then `v` for the radar. It's one list of every tab in every workspace, sorted the same way (waiting on you first, then failed, working, done, and idle), with each tab's workspace and how long ago it last did something. A line at the bottom counts how many tabs are in each state. It updates live while it's open, so you can leave it up and watch something finish. Use the arrows (or `j`/`k`) and enter to jump to a tab, or `r` to jump there and open the review on its last turn. Clicking a row jumps too, and `esc` (or `v` again) closes it. It's in the main menu and the palette as well.
 
 When a tab you're *not* looking at starts waiting on you, finishes, or fails, Claw$h also sends a desktop notification (through `notify-send`), like "Claw$h · quota: fix auth is waiting on you". Press `ctrl+b` then `m` to turn them off or back on. That choice is remembered, even across `--fresh`.
 
@@ -278,7 +281,7 @@ You can click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a
 
 Right-click a tab or a workspace for a small menu with New tab, Rename, and Close. Closing always asks first, and the confirmation starts on Cancel, so hitting enter by accident doesn't kill anything. Renaming a workspace only changes the name Claw$h shows. The folder stays put, and clearing the name goes back to the folder's name.
 
-The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, copy mode, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
+The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, the radar, copy mode, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
 
 Right-clicks inside the pane still go to Claude, so its own mouse handling isn't affected.
 
