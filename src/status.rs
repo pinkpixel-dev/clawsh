@@ -36,6 +36,9 @@ const EVENTS: &[&str] = &[
     "StopFailure",
 ];
 
+/// The hook that marks the start of a turn.
+const TURN_EVENT: &str = "UserPromptSubmit";
+
 /// Notification types that mean Claude is waiting on the person.
 const INPUT_NOTIFICATIONS: &[&str] = &[
     "permission_prompt",
@@ -156,6 +159,25 @@ pub fn run_hook() {
     if let Some(status) = classify(&input) {
         lines.push_str(&format!("{pane} {}\n", status.as_str()));
     }
+    report(&socket, &lines);
+
+    // Snapshot the worktree before Claude reads the prompt, for the review
+    // view's last-turn scope. Claude waits for this hook, so nothing it
+    // writes can land before the snapshot. Status goes first so the tab
+    // shows working right away.
+    if input.get("hook_event_name").and_then(Value::as_str) == Some(TURN_EVENT) {
+        let dir = input
+            .get("cwd")
+            .and_then(Value::as_str)
+            .map(PathBuf::from)
+            .or_else(|| std::env::current_dir().ok());
+        if let Some(tree) = dir.and_then(|d| crate::review::git::snapshot(&d).ok()) {
+            report(&socket, &format!("{pane} turn {tree}\n"));
+        }
+    }
+}
+
+fn report(socket: &str, lines: &str) {
     if lines.is_empty() {
         return;
     }
@@ -204,10 +226,16 @@ impl Drop for StatusServer {
     }
 }
 
-/// `"<pane> <status>"` or `"<pane> session <id> <transcript path>"`.
+/// `"<pane> <status>"`, `"<pane> session <id> <transcript path>"`, or
+/// `"<pane> turn <tree id>"`.
 fn parse_report(line: &str) -> Option<AppEvent> {
     let (pane, rest) = line.trim_end_matches(['\r', '\n']).split_once(' ')?;
     let pane: usize = pane.parse().ok()?;
+    if let Some(tree) = rest.strip_prefix("turn ") {
+        // SHA-1 or SHA-256 object IDs only; this ends up in git's argv.
+        let valid = matches!(tree.len(), 40 | 64) && tree.bytes().all(|b| b.is_ascii_hexdigit());
+        return valid.then(|| AppEvent::Turn(pane, tree.to_owned()));
+    }
     if let Some(session) = rest.strip_prefix("session ") {
         let (id, transcript) = session.split_once(' ').unwrap_or((session, ""));
         let transcript = (!transcript.is_empty()).then(|| PathBuf::from(transcript));
@@ -268,6 +296,8 @@ mod tests {
         writeln!(stream, "garbage").unwrap();
         writeln!(stream, "3 session ab-12 /home/me/My Projects/ab-12.jsonl").unwrap();
         writeln!(stream, "3 session bad;id /x").unwrap();
+        writeln!(stream, "3 turn {}", "ab12".repeat(10)).unwrap();
+        writeln!(stream, "3 turn --output=/tmp/x").unwrap();
         writeln!(stream, "3 done").unwrap();
         drop(stream);
         let next = || rx.recv_timeout(Duration::from_secs(2)).unwrap();
@@ -279,7 +309,8 @@ mod tests {
             }
             _ => panic!("expected a session report"),
         }
-        assert!(matches!(next(), AppEvent::Status(3, Status::Done)), "bad ids are dropped");
+        assert!(matches!(next(), AppEvent::Turn(3, t) if t == "ab12".repeat(10)), "bad ids are dropped");
+        assert!(matches!(next(), AppEvent::Status(3, Status::Done)), "bad trees are dropped");
         let path = server.path().to_path_buf();
         drop(server);
         assert!(!path.exists(), "socket cleaned up");

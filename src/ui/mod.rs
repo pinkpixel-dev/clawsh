@@ -4,6 +4,7 @@
 mod activity;
 mod footer;
 mod picker;
+pub mod review;
 mod sidebar;
 mod tabbar;
 mod usage;
@@ -118,6 +119,8 @@ pub enum Mode<'a> {
     Copy,
     /// The active tab's name, being edited.
     Rename(&'a str),
+    /// The review view; `true` while a comment is being typed.
+    Review(bool),
 }
 
 pub struct View<'a> {

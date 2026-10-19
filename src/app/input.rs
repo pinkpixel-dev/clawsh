@@ -29,6 +29,7 @@ pub(super) enum Action {
     ToggleNotifications,
     ToggleOrder,
     CopyMode,
+    Review,
     Rename,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
@@ -52,6 +53,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('m') => Action::ToggleNotifications,
         KeyCode::Char('a') => Action::ToggleOrder,
         KeyCode::Char('[') => Action::CopyMode,
+        KeyCode::Char('r') => Action::Review,
         KeyCode::Char(',') => Action::Rename,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
@@ -106,6 +108,13 @@ impl App {
                     self.mode = Mode::Normal;
                 }
                 Ok(())
+            }
+            Mode::Review => {
+                let outcome = match self.spaces.active_tab_mut().and_then(|p| p.review.as_mut()) {
+                    Some(review) => review.key(&k),
+                    None => crate::review::Outcome::Close,
+                };
+                self.review_outcome(outcome)
             }
             Mode::Rename(text) => {
                 if k.kind == KeyEventKind::Release {
@@ -176,6 +185,7 @@ impl App {
                     self.mode = Mode::Copy;
                 }
             }
+            Action::Review => self.open_review(),
             Action::Rename => {
                 if let Some(pane) = self.spaces.active_tab_mut() {
                     // Start from what the tab shows now, ready to edit.
@@ -252,7 +262,14 @@ impl App {
         if self.pane_area.contains(Position::new(m.column, m.row))
             && let Some(pane) = self.spaces.active_tab_mut()
         {
-            pane.mouse(&m)?;
+            if matches!(self.mode, Mode::Review) {
+                if let Some(review) = &mut pane.review {
+                    let outcome = review.mouse(&m);
+                    return self.review_outcome(outcome);
+                }
+            } else {
+                pane.mouse(&m)?;
+            }
         }
         Ok(())
     }
@@ -281,6 +298,12 @@ impl App {
             Mode::Rename(name) => {
                 for c in text.lines().next().unwrap_or("").chars() {
                     push_name_char(name, c);
+                }
+                Ok(())
+            }
+            Mode::Review => {
+                if let Some(review) = self.spaces.active_tab_mut().and_then(|p| p.review.as_mut()) {
+                    review.paste(text);
                 }
                 Ok(())
             }
@@ -324,6 +347,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('['))), Some(Action::CopyMode));
         assert_eq!(prefix_action(&key(KeyCode::Char(','))), Some(Action::Rename));
         assert_eq!(prefix_action(&key(KeyCode::Char('a'))), Some(Action::ToggleOrder));
+        assert_eq!(prefix_action(&key(KeyCode::Char('r'))), Some(Action::Review));
         assert_eq!(prefix_action(&key(KeyCode::Esc)), None);
         assert_eq!(prefix_action(&key(KeyCode::Char('0'))), None);
     }

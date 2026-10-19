@@ -24,6 +24,7 @@ use crate::event::AppEvent;
 use crate::host::CellPx;
 use crate::host_colors::HostColors;
 use crate::persist::SessionRef;
+use crate::review::Review;
 use crate::status::Status;
 use crate::theme;
 use crate::title;
@@ -51,6 +52,10 @@ pub struct Pane {
     transcript_title: Option<String>,
     /// When the tab last did something: a hook fired, or it was opened.
     pub last_active: SystemTime,
+    /// The worktree tree saved when the last prompt was sent.
+    pub turn_start: Option<String>,
+    /// The review view's state, kept so comments survive closing it.
+    pub review: Option<Review>,
 }
 
 impl Pane {
@@ -83,6 +88,8 @@ impl Pane {
             name: None,
             transcript_title: None,
             last_active: SystemTime::now(),
+            turn_start: None,
+            review: None,
         })
     }
 

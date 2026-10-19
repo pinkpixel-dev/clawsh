@@ -12,6 +12,9 @@ pub enum AppEvent {
     PtyExited(usize),
     /// A Claude hook reported a pane's status.
     Status(usize, Status),
+    /// A pane's Claude was sent a prompt; this tree is the worktree as it
+    /// was just before, for the review view's last-turn scope.
+    Turn(usize, String),
     /// A Claude hook reported which conversation a pane is in.
     Session(usize, SessionRef),
     /// A fresh reading of Claude's usage limits.

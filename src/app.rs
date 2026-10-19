@@ -1,4 +1,5 @@
 mod input;
+mod review;
 mod session;
 
 use std::io::{self, Write};
@@ -42,6 +43,8 @@ enum Mode {
     Copy,
     /// Typing a new name for the active tab (`ctrl+b ,`).
     Rename(String),
+    /// The active pane's review view covers the pane area (`ctrl+b r`).
+    Review,
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -209,6 +212,9 @@ fn build_view<'m>(
             Mode::Copy => ui::Mode::Copy,
             Mode::Rename(text) => ui::Mode::Rename(text),
             Mode::Picker(p) => ui::Mode::Picker(p),
+            Mode::Review => ui::Mode::Review(
+                spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),
+            ),
         },
     }
 }
@@ -314,6 +320,10 @@ impl App {
     /// the active pane.
     fn switch(&mut self, change: impl FnOnce(&mut Workspaces<Pane>)) -> Result<()> {
         self.leave_copy_mode()?;
+        // The review belongs to the tab it was opened on.
+        if matches!(self.mode, Mode::Review) {
+            self.mode = Mode::Normal;
+        }
         let before = self.active_id();
         change(&mut self.spaces);
         let after = self.active_id();
@@ -340,8 +350,11 @@ impl App {
         }
 
         // Images have to exist on the host before the cells that show them.
+        let reviewing = matches!(self.mode, Mode::Review);
         let mut out = Vec::new();
-        if let Some(pane) = self.spaces.active_tab_mut() {
+        if let Some(pane) = self.spaces.active_tab_mut()
+            && !reviewing
+        {
             let id = pane.id();
             self.images.sync(id, pane.emulator_mut(), &mut out)?;
         }
@@ -367,17 +380,22 @@ impl App {
         let normal = matches!(self.mode, Mode::Normal);
         let mut hits = Hits::default();
         let mut pane_cursor = Ok(None);
+        let mut review_cursor = None;
         term.draw(|frame| {
             if let Some(pane) = spaces.active_tab_mut() {
-                let id = pane.id();
                 let area = pane.area();
-                pane_cursor = pane
-                    .render(frame.buffer_mut(), |img| images.remap(id, img))
-                    .map(|c| c.map(|c| (c, area)));
+                if reviewing && let Some(review) = pane.review.as_mut() {
+                    review_cursor = ui::review::draw(frame, area, review);
+                } else {
+                    let id = pane.id();
+                    pane_cursor = pane
+                        .render(frame.buffer_mut(), |img| images.remap(id, img))
+                        .map(|c| c.map(|c| (c, area)));
+                }
             }
             let (chrome_hits, picker_cursor) = ui::draw_chrome(frame, &areas, &view);
             hits = chrome_hits;
-            if let Some(pos) = picker_cursor {
+            if let Some(pos) = picker_cursor.or(review_cursor) {
                 frame.set_cursor_position(pos);
             } else if let Ok(Some((c, area))) = &pane_cursor
                 && normal
@@ -455,11 +473,20 @@ impl App {
                 {
                     notify::send(title, body);
                 }
+                // Show what the turn changed if you're reviewing that tab.
+                if status == Status::Done && matches!(self.mode, Mode::Review) && self.active_id() == Some(id) {
+                    self.refresh_review();
+                }
                 // A finished turn just spent some of the limit.
                 if matches!(status, Status::Done | Status::Failed)
                     && let Some(poller) = &self.usage_poller
                 {
                     poller.refresh();
+                }
+            }
+            AppEvent::Turn(id, tree) => {
+                if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
+                    pane.turn_start = Some(tree);
                 }
             }
             AppEvent::Session(id, session) => {

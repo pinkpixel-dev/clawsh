@@ -9,6 +9,7 @@ mod pane;
 mod persist;
 mod shm;
 mod picker;
+mod review;
 mod status;
 mod theme;
 mod title;

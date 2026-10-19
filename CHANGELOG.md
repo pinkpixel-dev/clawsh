@@ -60,6 +60,14 @@
 - Sidebar tab titles take their status color, and idle tabs fade with age (muted after 15 minutes, dimmed after 2 hours)
 - `ctrl+b a` sorts the sidebar by activity, without changing tab numbers; the choice is remembered
 
+### 🔍 Review
+- `ctrl+b r` opens a review of the current tab's folder: changed files with `+`/`-` counts and a numbered diff, in place of the tab
+- Two scopes: uncommitted changes (against `HEAD`, untracked files included) and the last turn (only what changed since the tab's last prompt)
+- Comment on a line or a `v` selection, then `s` pastes all comments into that tab's Claude as one message; it holds off while Claude waits on a permission prompt
+- Markdown files can be shown rendered with `m`
+- Mouse support for files, scopes, lines, drag selection, and scrolling, and a one-column layout on narrow terminals
+- The review reloads when the tab's turn finishes, and comments stay with the tab until they're sent
+
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`
 - Footer bar with the current workspace, tab, and key hints for the active mode

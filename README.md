@@ -73,6 +73,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `m` | Turn desktop notifications off or back on |
 | `a` | Sort the sidebar by activity, or back to open order |
 | `[` | Copy mode: select text with the keyboard, including the scrollback |
+| `r` | Review what changed in this tab's folder and comment on it |
 | `,` | Rename the current tab |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
@@ -123,6 +124,37 @@ Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a war
 ```bash
 CLAWSH_THEME=light ./target/release/clawsh
 ```
+
+### Reviewing changes
+
+Press `ctrl+b` then `r` to see what changed in the current tab's folder. The review takes over the tab: changed files on the left with their `+`/`-` counts, and the selected file's diff on the right. It's a git thing, so the folder has to be in a git repo.
+
+There are two scopes. **Uncommitted** (`u`) is everything that differs from `HEAD`, untracked files included. **Last turn** (`t`) is only what changed since you last sent this tab a prompt, which is usually the part you actually want to check. When Claude finishes a turn while you're looking, the review reloads on its own.
+
+To leave feedback, move to a line (or select a few with `v`), press `c`, type, and hit `Enter`. Commented lines get a yellow `▌`. When you're done, `s` pastes every comment into that tab's Claude as one message, with the lines quoted under their file and line numbers. It doesn't press Enter for you, so you can add to it before sending. If Claude is sitting on a permission prompt, `s` waits, since the paste would get lost.
+
+| Key | What it does |
+|---|---|
+| `u` / `t` | Uncommitted / last turn |
+| `tab` | Switch between the file list and the diff |
+| `j` / `k` or arrows | Move (files or diff lines) |
+| `f` / `F` | Next / previous file, from anywhere |
+| `]` / `[` | Next / previous hunk |
+| `ctrl+d` / `ctrl+u`, `PgDn` / `PgUp` | Half a page / a page |
+| `v` | Start (or drop) a selection |
+| `c` or `Enter` | Comment on the selection, or edit the comment under the cursor |
+| `d` | Delete the comment under the cursor |
+| `n` / `N` | Next / previous comment |
+| `m` | Show a markdown file rendered instead of as a diff |
+| `s` | Send all comments to Claude |
+| `r` | Reload |
+| `q` or `esc` | Close the review |
+
+The mouse works too: click a file or a scope, click a diff line, drag to select lines, and scroll either side. On narrow terminals the file list and the diff take turns, and `tab` flips between them.
+
+Comments stay with the tab until you send them, so closing the review and coming back keeps them. They aren't saved when you quit Claw$h, though.
+
+A couple of things to know. Renamed files show up as a delete plus an add. The last-turn snapshot runs inside Claude's prompt hook, so in a very big repo it adds a little delay before each prompt (it took 18 ms on this repo). Both scopes write snapshot objects into the repo's `.git` folder. Git cleans those up on its own eventually, since nothing points at them.
 
 ### Copying from Claude
 
