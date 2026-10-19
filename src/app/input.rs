@@ -8,7 +8,7 @@ use crossterm::event::{
 use ratatui::layout::Position;
 
 use super::{App, Mode};
-use crate::picker::{Kind, Picker};
+use crate::picker::Picker;
 use crate::ui::Click;
 
 /// Sidebar rows moved per wheel tick.
@@ -35,6 +35,7 @@ pub(super) enum Action {
     SaveTemplate,
     Snippet,
     Menu,
+    Palette,
     Terminal,
     SwapFocus,
     Quit,
@@ -67,6 +68,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('T') => Action::SaveTemplate,
         KeyCode::Char('i') => Action::Snippet,
         KeyCode::Char('o') => Action::Menu,
+        KeyCode::Char(' ') => Action::Palette,
         KeyCode::Char('e') => Action::Terminal,
         KeyCode::Char(';') => Action::SwapFocus,
         KeyCode::Char('q') => Action::Quit,
@@ -261,6 +263,7 @@ impl App {
             Action::SaveTemplate => self.start_save_template(),
             Action::Snippet => self.open_snippet_picker(),
             Action::Menu => self.open_main_menu(),
+            Action::Palette => self.open_palette(),
             Action::Terminal => {
                 if let Some(id) = self.active_id() {
                     self.toggle_terminal(id)?;
@@ -294,16 +297,11 @@ impl App {
         let Mode::Picker(picker) = &self.mode else {
             return Ok(());
         };
-        let Some(path) = picker.choice() else {
+        let Some(target) = picker.choice() else {
             return Ok(());
         };
-        let kind = picker.kind;
         self.mode = Mode::Normal;
-        match kind {
-            Kind::Folders => self.open_workspace(path, &[]),
-            Kind::Templates => self.open_template(&path),
-            Kind::Snippets => self.insert_snippet(&path),
-        }
+        self.open_target(target)
     }
 
     pub(super) fn mouse(&mut self, m: MouseEvent) -> Result<()> {
@@ -478,6 +476,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('t'))), Some(Action::OpenTemplate));
         assert_eq!(prefix_action(&key(KeyCode::Char('i'))), Some(Action::Snippet));
         assert_eq!(prefix_action(&key(KeyCode::Char('o'))), Some(Action::Menu));
+        assert_eq!(prefix_action(&key(KeyCode::Char(' '))), Some(Action::Palette));
         assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
         assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(

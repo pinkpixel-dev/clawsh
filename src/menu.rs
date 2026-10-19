@@ -24,6 +24,8 @@ pub enum Choice {
     /// Drawers on the right instead of the bottom, or back.
     ToggleTerminalSide,
     Cancel,
+    /// Opens the command palette.
+    Palette,
     NewWorkspace,
     OpenTemplate,
     SaveTemplate,
@@ -134,7 +136,10 @@ impl Menu {
         tab: Option<(usize, Option<bool>)>,
         s: &Settings,
     ) -> Self {
-        let mut items = vec![Item::new("New workspace", Choice::NewWorkspace).key("w")];
+        let mut items = vec![
+            Item::new("Command palette", Choice::Palette).key("space"),
+            Item::new("New workspace", Choice::NewWorkspace).key("w").divider(),
+        ];
         if let Some(path) = workspace {
             items.push(Item::new("Rename workspace", Choice::RenameWorkspace(path.clone())));
             items.push(Item::new("Close workspace", Choice::CloseWorkspace(path)).danger());
@@ -300,6 +305,7 @@ mod tests {
         assert!(on.contains(&"Mute notifications".to_owned()));
         assert!(on.contains(&"Hide sidebar".to_owned()));
         assert!(!on.contains(&"Close workspace".to_owned()), "no workspace, nothing to close");
+        assert_eq!(on[0], "Command palette");
         let off = labels(&Menu::main((0, 0), Some(PathBuf::from("/p")), Some((1, Some(true))), &settings(false)));
         assert!(off.contains(&"Hide terminal".to_owned()));
         assert!(off.contains(&"Terminal on the right".to_owned()));

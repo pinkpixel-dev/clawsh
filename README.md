@@ -96,6 +96,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 
 | `ctrl+b` then | What it does |
 |---|---|
+| `space` | Command palette: commands, tabs, workspaces, snippets, and templates |
 | `c` | New Claude tab in the current workspace |
 | `w` | Open a workspace (folder picker) |
 | `x` | Close the current tab |
@@ -280,6 +281,8 @@ Right-click a tab or a workspace for a small menu with New tab, Rename, and Clos
 The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
 
 Right-clicks inside the pane still go to Claude, so its own mouse handling isn't affected.
+
+If you don't remember a key, press `ctrl+b` then `space` for the command palette. It's one fuzzy list of commands, every tab and workspace you have open, your snippets, and your templates. Commands show their `ctrl+b` key next to them, picking a tab or workspace switches to it, and anything that closes stuff still asks first. It's in the main menu too.
 
 The folder picker lists the folder you launched from plus its sibling folders. Type to fuzzy filter, or type a full path (starting with `/` or `~`) to open any folder. If you keep projects somewhere else too, add those parent folders to `CLAWSH_PROJECTS`, separated by colons:
 

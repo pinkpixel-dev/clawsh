@@ -5,34 +5,15 @@ use std::path::Path;
 use anyhow::Result;
 
 use super::{App, Mode};
-use crate::picker::{Entry, Kind, Picker};
+use crate::picker::{Entry, Kind, Picker, Target};
 use crate::template::{self, Tab, Template};
 
 impl App {
     /// `ctrl+b t`: a picker of every saved template.
     pub(super) fn open_template_picker(&mut self) {
-        let Some(dir) = template::default_dir() else {
-            return;
-        };
-        let entries = template::list(&dir)
-            .into_iter()
-            .map(|(path, t)| match t {
-                Ok(t) => Entry {
-                    detail: match t.tabs.len() {
-                        0 | 1 => t.path.clone(),
-                        n => format!("{n} tabs  {}", t.path),
-                    },
-                    name: t.name,
-                    path,
-                },
-                Err(err) => Entry {
-                    name: path.file_stem().unwrap_or_default().to_string_lossy().into_owned(),
-                    detail: err,
-                    path,
-                },
-            })
-            .collect();
-        self.mode = Mode::Picker(Picker::new(Kind::Templates, entries));
+        if let Some(entries) = template_entries() {
+            self.mode = Mode::Picker(Picker::new(Kind::Templates, entries));
+        }
     }
 
     /// Opens a template as a new workspace. If its folder is already open,
@@ -99,4 +80,28 @@ impl App {
             Err(err) => format!("couldn't save the template: {err:#}"),
         });
     }
+}
+
+/// The template picker's entries, or `None` when there's no config folder.
+pub(super) fn template_entries() -> Option<Vec<Entry>> {
+    let dir = template::default_dir()?;
+    let entries = template::list(&dir)
+        .into_iter()
+        .map(|(path, t)| match t {
+            Ok(t) => Entry {
+                detail: match t.tabs.len() {
+                    0 | 1 => t.path.clone(),
+                    n => format!("{n} tabs  {}", t.path),
+                },
+                name: t.name,
+                target: Target::Template(path),
+            },
+            Err(err) => Entry {
+                name: path.file_stem().unwrap_or_default().to_string_lossy().into_owned(),
+                detail: err,
+                target: Target::Template(path),
+            },
+        })
+        .collect();
+    Some(entries)
 }

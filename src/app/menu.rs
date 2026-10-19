@@ -16,6 +16,11 @@ use crate::workspace::Workspace;
 impl App {
     /// The footer button's menu, also on `ctrl+b o`.
     pub(super) fn open_main_menu(&mut self) {
+        self.mode = Mode::Menu(self.main_menu());
+    }
+
+    /// The main menu's items, which the palette lists as commands too.
+    pub(super) fn main_menu(&self) -> Menu {
         let settings = Settings {
             by_activity: self.by_activity,
             terminal_right: self.drawer_side == Side::Right,
@@ -24,10 +29,13 @@ impl App {
         };
         let workspace = self.spaces.current().map(|ws| ws.path.clone());
         let tab = self.spaces.active_tab().map(|t| (t.id(), t.drawer.as_ref().map(|d| d.shown)));
-        // The footer sits right under the pane, so this opens just above
-        // the menu button.
-        let anchor = (0, self.pane_area.bottom());
-        self.mode = Mode::Menu(Menu::main(anchor, workspace, tab, &settings));
+        Menu::main(self.menu_anchor(), workspace, tab, &settings)
+    }
+
+    /// The footer sits right under the pane, so menus opened from here sit
+    /// just above the menu button.
+    pub(super) fn menu_anchor(&self) -> (u16, u16) {
+        (0, self.pane_area.bottom())
     }
 
     /// A right-click on the chrome. Only tabs and workspaces have menus.
@@ -86,10 +94,14 @@ impl App {
         let Mode::Menu(menu) = std::mem::replace(&mut self.mode, Mode::Normal) else {
             return Ok(());
         };
-        let Some(choice) = menu.choice().cloned() else {
-            return Ok(());
-        };
-        let at = menu.anchor;
+        match menu.choice().cloned() {
+            Some(choice) => self.run_choice(choice, menu.anchor),
+            None => Ok(()),
+        }
+    }
+
+    /// Does what a menu item says. A confirmation opens at `at`.
+    pub(super) fn run_choice(&mut self, choice: Choice, at: (u16, u16)) -> Result<()> {
         match choice {
             Choice::NewTab(path) => {
                 if let Some(wi) = self.spaces.list.iter().position(|ws| ws.path == path) {
@@ -131,6 +143,7 @@ impl App {
             Choice::ConfirmCloseTerminal(id) => self.close_terminal(id)?,
             Choice::ToggleTerminalSide => self.toggle_terminal_side(),
             Choice::Cancel => {}
+            Choice::Palette => self.open_palette(),
             Choice::NewWorkspace => self.open_picker(),
             Choice::OpenTemplate => self.open_template_picker(),
             Choice::SaveTemplate => self.start_save_template(),

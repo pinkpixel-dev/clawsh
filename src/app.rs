@@ -1,6 +1,7 @@
 mod drawer;
 mod input;
 mod menu;
+mod palette;
 mod review;
 mod session;
 mod snippets;

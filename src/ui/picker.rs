@@ -27,6 +27,7 @@ pub fn draw(frame: &mut Frame, picker: &Picker, hits: &mut Hits) -> Position {
         Kind::Folders => (" Open workspace ", "no matching folders, type a path to open any folder"),
         Kind::Templates => (" Open template ", "no templates yet, save one with ctrl+b T"),
         Kind::Snippets => (" Insert snippet ", "no snippets yet, add .md files to ~/.config/clawsh/snippets"),
+        Kind::Palette => (" Commands ", "nothing matches"),
     };
     let block = Block::bordered()
         .title(Span::styled(title, theme::accent()))

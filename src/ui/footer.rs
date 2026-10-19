@@ -40,6 +40,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
     let hints: &[(&str, &str)] = match view.mode {
         Mode::Normal => &[("ctrl+b", "commands")],
         Mode::Prefix => &[
+            ("space", "palette"),
             ("c", "tab"),
             ("w", "workspace"),
             ("x", "close"),

@@ -5,26 +5,31 @@ use std::path::Path;
 use anyhow::Result;
 
 use super::{App, Mode};
-use crate::picker::{Entry, Kind, Picker};
+use crate::picker::{Entry, Kind, Picker, Target};
 use crate::snippet;
 use crate::status::Status;
 
 impl App {
     /// `ctrl+b i`: this workspace's snippets, then the global ones.
     pub(super) fn open_snippet_picker(&mut self) {
-        let Some(ws) = self.spaces.current() else {
-            return;
-        };
+        if let Some(entries) = self.snippet_entries() {
+            self.mode = Mode::Picker(Picker::new(Kind::Snippets, entries));
+        }
+    }
+
+    /// The snippet picker's entries, or `None` without a workspace.
+    pub(super) fn snippet_entries(&self) -> Option<Vec<Entry>> {
+        let ws = self.spaces.current()?;
         let global = snippet::global_dir();
         let entries = snippet::list(&snippet::repo_dir(&ws.path), global.as_deref())
             .into_iter()
             .map(|s| Entry {
                 name: s.name,
                 detail: format!("{:<6}  {}", s.source.label(), s.preview),
-                path: s.path,
+                target: Target::Snippet(s.path),
             })
             .collect();
-        self.mode = Mode::Picker(Picker::new(Kind::Snippets, entries));
+        Some(entries)
     }
 
     /// Pastes the snippet without pressing Enter, so it can be edited first.

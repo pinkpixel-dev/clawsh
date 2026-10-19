@@ -1,24 +1,44 @@
 //! The fuzzy pickers: folders for a new workspace (with typed paths), saved
-//! workspace templates, and prompt snippets.
+//! workspace templates, prompt snippets, and the command palette.
 
 use std::path::{Path, PathBuf};
 
+use crate::menu::Choice;
 use crate::workspace::folder_name;
 
-/// What a picker lists, which decides its title and what Enter does.
+/// What a picker lists, which decides its title and whether typed paths count.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Folders,
     Templates,
     Snippets,
+    /// Commands, tabs, workspaces, snippets, and templates together.
+    Palette,
+}
+
+/// What picking an entry does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Target {
+    /// Open this folder as a workspace.
+    Folder(PathBuf),
+    /// Open the template saved in this file.
+    Template(PathBuf),
+    /// Paste the snippet in this file.
+    Snippet(PathBuf),
+    /// Do what this menu item does.
+    Command(Choice),
+    /// Switch to the tab with this pane id.
+    Tab(usize),
+    /// Switch to the workspace at this folder.
+    Workspace(PathBuf),
 }
 
 /// One row: the name that's matched against, a faint detail beside it, and
-/// the path it stands for (a folder, a template file, or a snippet file).
+/// what picking it does.
 pub struct Entry {
     pub name: String,
     pub detail: String,
-    pub path: PathBuf,
+    pub target: Target,
 }
 
 pub struct Picker {
@@ -49,7 +69,7 @@ impl Picker {
             .map(|path| Entry {
                 name: folder_name(&path),
                 detail: path.parent().map(|p| p.display().to_string()).unwrap_or_default(),
-                path,
+                target: Target::Folder(path),
             })
             .collect();
         Self::new(Kind::Folders, entries)
@@ -115,9 +135,10 @@ impl Picker {
     }
 
     /// What Enter opens: a typed folder wins, then the selected match.
-    pub fn choice(&self) -> Option<PathBuf> {
+    pub fn choice(&self) -> Option<Target> {
         self.typed_dir()
-            .or_else(|| self.items().nth(self.selected).map(|e| e.path.clone()))
+            .map(Target::Folder)
+            .or_else(|| self.items().nth(self.selected).map(|e| e.target.clone()))
     }
 
     pub fn select(&mut self, index: usize) {
@@ -219,16 +240,42 @@ mod tests {
         for c in typed.to_string_lossy().chars() {
             p.push(c);
         }
-        assert_eq!(p.choice(), Some(typed.clone()));
+        assert_eq!(p.choice(), Some(Target::Folder(typed.clone())));
 
         // Template pickers match names only; a path is just a query.
-        let entry = Entry { name: "slate".into(), detail: String::new(), path: "/t/slate.toml".into() };
+        let entry = Entry { name: "slate".into(), detail: String::new(), target: Target::Template("/t/slate.toml".into()) };
         let mut t = Picker::new(Kind::Templates, vec![entry]);
         for c in typed.to_string_lossy().chars() {
             t.push(c);
         }
         assert_eq!(t.typed_dir(), None);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn palette_picks_commands_and_tabs() {
+        let entry = |name: &str, target| Entry { name: name.into(), detail: String::new(), target };
+        let mut p = Picker::new(
+            Kind::Palette,
+            vec![
+                entry("Review changes", Target::Command(Choice::Review)),
+                entry("fix auth", Target::Tab(4)),
+            ],
+        );
+        for c in "fix".chars() {
+            p.push(c);
+        }
+        assert_eq!(p.choice(), Some(Target::Tab(4)));
+        p.query.clear();
+        for c in "/rev".chars() {
+            p.push(c);
+        }
+        // A leading slash is only a path in the folder picker.
+        assert_eq!(p.typed_dir(), None);
+        assert_eq!(p.choice(), None);
+        p.query.clear();
+        p.push('r');
+        assert_eq!(p.choice(), Some(Target::Command(Choice::Review)));
     }
 
     #[test]

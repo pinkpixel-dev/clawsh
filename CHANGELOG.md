@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### 🎛️ Command palette
+- `ctrl+b space` opens a fuzzy picker of commands, every tab, every workspace, snippets, and templates
+- Commands show their `ctrl+b` key, so the palette doubles as a cheat sheet
+- Picking a tab or workspace switches to it, and closing things from the palette still asks first
+- Also in the main menu as Command palette, and listed first in the `ctrl+b` footer hints
+
 ## 1.1.0 - October 19, 2026
 
 ### 🖱️ Menus
