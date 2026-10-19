@@ -5,6 +5,7 @@
 ### 🎛️ Command palette
 - `ctrl+b space` opens a fuzzy picker of commands, every tab, every workspace, snippets, and templates
 - Commands show their `ctrl+b` key, so the palette doubles as a cheat sheet
+- Copy mode is in the palette and the main menu too, for the pane that has the keyboard
 - Picking a tab or workspace switches to it, and closing things from the palette still asks first
 - Also in the main menu as Command palette, and listed first in the `ctrl+b` footer hints
 

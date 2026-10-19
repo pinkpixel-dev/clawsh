@@ -278,7 +278,7 @@ You can click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a
 
 Right-click a tab or a workspace for a small menu with New tab, Rename, and Close. Closing always asks first, and the confirmation starts on Cancel, so hitting enter by accident doesn't kill anything. Renaming a workspace only changes the name Claw$h shows. The folder stays put, and clearing the name goes back to the folder's name.
 
-The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
+The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, copy mode, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
 
 Right-clicks inside the pane still go to Claude, so its own mouse handling isn't affected.
 

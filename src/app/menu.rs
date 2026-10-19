@@ -144,6 +144,7 @@ impl App {
             Choice::ToggleTerminalSide => self.toggle_terminal_side(),
             Choice::Cancel => {}
             Choice::Palette => self.open_palette(),
+            Choice::CopyMode => self.start_copy_mode()?,
             Choice::NewWorkspace => self.open_picker(),
             Choice::OpenTemplate => self.open_template_picker(),
             Choice::SaveTemplate => self.start_save_template(),

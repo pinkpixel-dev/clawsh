@@ -26,6 +26,8 @@ pub enum Choice {
     Cancel,
     /// Opens the command palette.
     Palette,
+    /// Copy mode in the focused pane.
+    CopyMode,
     NewWorkspace,
     OpenTemplate,
     SaveTemplate,
@@ -150,6 +152,9 @@ impl Menu {
             Item::new("Insert snippet", Choice::Snippet).key("i"),
             Item::new("Review changes", Choice::Review).key("r"),
         ]);
+        if tab.is_some() {
+            items.push(Item::new("Copy mode", Choice::CopyMode).key("["));
+        }
         let side = Item::new(
             if s.terminal_right { "Terminal at the bottom" } else { "Terminal on the right" },
             Choice::ToggleTerminalSide,
@@ -301,6 +306,7 @@ mod tests {
         let on = labels(&Menu::main((0, 0), None, None, &settings(true)));
         assert!(on.contains(&"Terminal at the bottom".to_owned()));
         assert!(!on.iter().any(|l| l.ends_with("terminal")), "no tab, no toggle");
+        assert!(!on.contains(&"Copy mode".to_owned()), "no tab, nothing to copy");
         assert!(on.contains(&"Sort by open order".to_owned()));
         assert!(on.contains(&"Mute notifications".to_owned()));
         assert!(on.contains(&"Hide sidebar".to_owned()));
@@ -308,6 +314,7 @@ mod tests {
         assert_eq!(on[0], "Command palette");
         let off = labels(&Menu::main((0, 0), Some(PathBuf::from("/p")), Some((1, Some(true))), &settings(false)));
         assert!(off.contains(&"Hide terminal".to_owned()));
+        assert!(off.contains(&"Copy mode".to_owned()));
         assert!(off.contains(&"Terminal on the right".to_owned()));
         assert!(off.contains(&"Sort by activity".to_owned()));
         assert!(off.contains(&"Unmute notifications".to_owned()));

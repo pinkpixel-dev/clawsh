@@ -251,12 +251,7 @@ impl App {
             Action::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             Action::ToggleNotifications => self.notifications = !self.notifications,
             Action::ToggleOrder => self.by_activity = !self.by_activity,
-            Action::CopyMode => {
-                if let Some(pane) = self.focused_pane_mut() {
-                    pane.enter_copy_mode()?;
-                    self.mode = Mode::Copy;
-                }
-            }
+            Action::CopyMode => self.start_copy_mode()?,
             Action::Review => self.open_review(),
             Action::Rename => self.start_rename_tab(),
             Action::OpenTemplate => self.open_template_picker(),
@@ -276,6 +271,14 @@ impl App {
                     pane.key(key)?;
                 }
             }
+        }
+        Ok(())
+    }
+
+    pub(super) fn start_copy_mode(&mut self) -> Result<()> {
+        if let Some(pane) = self.focused_pane_mut() {
+            pane.enter_copy_mode()?;
+            self.mode = Mode::Copy;
         }
         Ok(())
     }
