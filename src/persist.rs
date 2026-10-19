@@ -53,6 +53,9 @@ pub struct Saved {
     /// Desktop notifications on or off (`ctrl+b m`). Kept even by `--fresh`.
     #[serde(default = "on")]
     pub notifications: bool,
+    /// Sidebar in activity order (`ctrl+b a`). Kept even by `--fresh`.
+    #[serde(default)]
+    pub by_activity: bool,
     pub active: usize,
     pub workspaces: Vec<SavedWorkspace>,
 }
@@ -71,13 +74,14 @@ pub struct SavedWorkspace {
 impl Saved {
     pub fn from_spaces<T>(
         spaces: &Workspaces<T>,
-        notifications: bool,
+        (notifications, by_activity): (bool, bool),
         session: impl Fn(&T) -> Option<SessionRef>,
         name: impl Fn(&T) -> Option<String>,
     ) -> Self {
         Self {
             version: VERSION,
             notifications,
+            by_activity,
             active: spaces.active,
             workspaces: spaces
                 .list
@@ -167,11 +171,12 @@ mod tests {
         spaces.select_tab(0, 0);
         let saved = Saved::from_spaces(
             &spaces,
-            false,
+            (false, true),
             |&t| SessionRef::new(&format!("s{t}"), None),
             |&t| (t == 2).then(|| "auth work".to_owned()),
         );
         assert!(!saved.notifications);
+        assert!(saved.by_activity);
         assert_eq!(saved.workspaces[0].names, [None, Some("auth work".to_owned())]);
         assert!(saved.workspaces[1].names.is_empty(), "no names, nothing saved");
         assert_eq!(saved.active, 0);
@@ -184,9 +189,10 @@ mod tests {
         assert_eq!(load(&path), Some(saved));
         assert!(!path.with_extension("json.tmp").exists());
 
-        // Files from before the setting existed load with notifications on.
+        // Files from before the settings existed load with the defaults.
         fs::write(&path, r#"{"version":1,"active":0,"workspaces":[]}"#).unwrap();
-        assert!(load(&path).unwrap().notifications);
+        let old = load(&path).unwrap();
+        assert!(old.notifications && !old.by_activity);
 
         fs::write(&path, "not json").unwrap();
         assert_eq!(load(&path), None, "corrupt file means a clean start");

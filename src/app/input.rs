@@ -27,6 +27,7 @@ pub(super) enum Action {
     CycleWorkspace(isize),
     ToggleSidebar,
     ToggleNotifications,
+    ToggleOrder,
     CopyMode,
     Rename,
     Quit,
@@ -49,6 +50,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('k') | KeyCode::Up => Action::CycleWorkspace(-1),
         KeyCode::Char('s') => Action::ToggleSidebar,
         KeyCode::Char('m') => Action::ToggleNotifications,
+        KeyCode::Char('a') => Action::ToggleOrder,
         KeyCode::Char('[') => Action::CopyMode,
         KeyCode::Char(',') => Action::Rename,
         KeyCode::Char('q') => Action::Quit,
@@ -167,6 +169,7 @@ impl App {
             Action::CycleWorkspace(d) => self.switch(|s| s.cycle_workspace(d))?,
             Action::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             Action::ToggleNotifications => self.notifications = !self.notifications,
+            Action::ToggleOrder => self.by_activity = !self.by_activity,
             Action::CopyMode => {
                 if let Some(pane) = self.spaces.active_tab_mut() {
                     pane.enter_copy_mode()?;
@@ -320,6 +323,7 @@ mod tests {
         );
         assert_eq!(prefix_action(&key(KeyCode::Char('['))), Some(Action::CopyMode));
         assert_eq!(prefix_action(&key(KeyCode::Char(','))), Some(Action::Rename));
+        assert_eq!(prefix_action(&key(KeyCode::Char('a'))), Some(Action::ToggleOrder));
         assert_eq!(prefix_action(&key(KeyCode::Esc)), None);
         assert_eq!(prefix_action(&key(KeyCode::Char('0'))), None);
     }

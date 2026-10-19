@@ -57,6 +57,8 @@
 - Double-click copies a word and triple-click copies a line in those same tabs
 - Tabs name themselves from Claude's session title, falling back to the transcript (`/rename` name, Claude's generated title, then your first prompt)
 - `ctrl+b ,` renames the current tab; your name sticks across restarts, and an empty name goes back to auto-naming
+- Sidebar tab titles take their status color, and idle tabs fade with age (muted after 15 minutes, dimmed after 2 hours)
+- `ctrl+b a` sorts the sidebar by activity, without changing tab numbers; the choice is remembered
 
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`

@@ -5,7 +5,7 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders};
 
-use super::{Click, Hits, View, status_icon, truncate, usage};
+use super::{Click, Hits, View, activity, status_icon, truncate, usage};
 use crate::status::Status;
 use crate::theme;
 
@@ -50,12 +50,12 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
 /// Workspaces and their tabs, scrolled so the window fits `list`.
 fn draw_list(buf: &mut Buffer, list: Rect, view: &View, hits: &mut Hits) {
     let mut rows = Vec::new();
-    for (wi, ws) in view.workspaces.iter().enumerate() {
-        if wi > 0 {
+    for (i, (wi, tabs)) in activity::order(view).into_iter().enumerate() {
+        if i > 0 {
             rows.push(Row::Gap);
         }
         rows.push(Row::Workspace(wi));
-        rows.extend((0..ws.tabs.len()).map(|ti| Row::Tab(wi, ti)));
+        rows.extend(tabs.into_iter().map(|ti| Row::Tab(wi, ti)));
     }
 
     let height = list.height as usize;
@@ -130,11 +130,7 @@ fn tab_row(buf: &mut Buffer, row: Rect, view: &View, wi: usize, ti: usize, hits:
     let ws = &view.workspaces[wi];
     let tab = &ws.tabs[ti];
     let current = wi == view.active && ti == ws.active_tab;
-    let style = if current {
-        theme::panel().add_modifier(Modifier::BOLD)
-    } else {
-        theme::muted()
-    };
+    let style = activity::title_style(tab, current);
     let line = Line::from(vec![
         Span::raw("   "),
         status_icon(tab.status, view.spinner_frame),
@@ -152,7 +148,7 @@ mod tests {
 
     /// Ten workspaces with two tabs each: 10 * 3 rows + 9 gaps = 39 rows.
     fn view(active: usize, scroll: usize, follow: bool) -> View<'static> {
-        let tab = |t: &str| TabView { title: t.into(), status: Status::Idle };
+        let tab = |t: &str| TabView { title: t.into(), status: Status::Idle, idle_for: None };
         View {
             spinner_frame: 0,
             usage: None,
@@ -169,6 +165,7 @@ mod tests {
             sidebar_scroll: scroll,
             follow_active: follow,
             notifications: true,
+            by_activity: false,
         }
     }
 

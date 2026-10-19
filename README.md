@@ -71,6 +71,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `j` / `k` or `↓` / `↑` | Next / previous workspace |
 | `s` | Hide or show the sidebar |
 | `m` | Turn desktop notifications off or back on |
+| `a` | Sort the sidebar by activity, or back to open order |
 | `[` | Copy mode: select text with the keyboard, including the scrollback |
 | `,` | Rename the current tab |
 | `q` | Quit |
@@ -96,6 +97,10 @@ Every tab has a little status icon in the sidebar and the tab bar, and each work
 | `✗` | The turn failed (an API error, for example) |
 
 `●` and `✗` clear once you switch to that tab or type in it.
+
+In the sidebar, tab titles take their status color too. Idle tabs fade as they sit: for the first 15 minutes after a turn they look just stopped, then they go muted, and after 2 hours the row dims. That makes it pretty easy to tell the tab you just used from the one you forgot about on Tuesday.
+
+Press `ctrl+b` then `a` to sort the sidebar by activity: whatever's waiting on you first, then working tabs, then the rest by how recently they did something, with workspaces ordered by their busiest tab. It only changes the sidebar. The tab bar and `ctrl+b 1` to `9` keep the order you opened things in, so the number keys never move under you. Press it again for open order. Like notifications, the choice is remembered.
 
 When a tab you're *not* looking at starts waiting on you, finishes, or fails, Claw$h also sends a desktop notification (through `notify-send`), like "Claw$h · quota: fix auth is waiting on you". Press `ctrl+b` then `m` to turn them off or back on. That choice is remembered, even across `--fresh`.
 

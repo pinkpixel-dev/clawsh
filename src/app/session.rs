@@ -24,6 +24,15 @@ impl App {
                 pane.session = tab.clone();
                 pane.name = ws.names.get(ti).cloned().flatten();
                 pane.refresh_transcript_title();
+                // Until this tab's next turn, the transcript says when it
+                // last did anything.
+                if let Some(when) = tab
+                    .as_ref()
+                    .and_then(|s| s.transcript.as_deref())
+                    .and_then(|t| std::fs::metadata(t).ok()?.modified().ok())
+                {
+                    pane.last_active = when;
+                }
                 if ti == 0 {
                     self.spaces.add_workspace(ws.path.clone(), pane);
                 } else {
@@ -66,7 +75,7 @@ impl App {
         };
         let saved = Saved::from_spaces(
             &self.spaces,
-            self.notifications,
+            (self.notifications, self.by_activity),
             |p| p.session.clone(),
             |p| p.name.clone(),
         );

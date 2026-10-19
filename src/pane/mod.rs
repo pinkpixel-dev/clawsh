@@ -6,7 +6,7 @@ pub(crate) mod pty;
 
 use std::path::Path;
 use std::sync::mpsc::Sender;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
@@ -49,6 +49,8 @@ pub struct Pane {
     pub name: Option<String>,
     /// The name the transcript suggests, once it has one.
     transcript_title: Option<String>,
+    /// When the tab last did something: a hook fired, or it was opened.
+    pub last_active: SystemTime,
 }
 
 impl Pane {
@@ -80,6 +82,7 @@ impl Pane {
             clicks: Clicks::default(),
             name: None,
             transcript_title: None,
+            last_active: SystemTime::now(),
         })
     }
 

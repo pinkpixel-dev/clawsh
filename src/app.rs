@@ -4,7 +4,7 @@ mod session;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::Result;
 use crossterm::event::Event;
@@ -46,6 +46,8 @@ enum Mode {
 
 /// How often to redraw while a tab is working, so its spinner moves.
 const SPINNER_TICK: Duration = Duration::from_millis(120);
+/// How often to redraw otherwise, so idle tabs fade as they age.
+const IDLE_TICK: Duration = Duration::from_secs(60);
 
 struct App {
     spaces: Workspaces<Pane>,
@@ -64,6 +66,8 @@ struct App {
     session_file: Option<PathBuf>,
     /// Desktop notifications for background tabs (`ctrl+b m`).
     notifications: bool,
+    /// Sidebar busiest-first instead of open order (`ctrl+b a`).
+    by_activity: bool,
     last_saved: Option<Saved>,
     started: Instant,
     launch_dir: PathBuf,
@@ -111,6 +115,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         session_file: is_claude.then(persist::default_path).flatten(),
         last_saved: None,
         notifications: true,
+        by_activity: false,
         started: Instant::now(),
         launch_dir: launch.cwd.clone(),
         next_id: 0,
@@ -129,6 +134,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
     let saved = app.session_file.as_deref().and_then(persist::load);
     if let Some(saved) = &saved {
         app.notifications = saved.notifications;
+        app.by_activity = saved.by_activity;
         if !launch.fresh {
             app.restore(saved)?;
         }
@@ -169,9 +175,11 @@ fn build_view<'m>(
     frame: usize,
     (sidebar_scroll, follow_active): (usize, bool),
     notifications: bool,
+    by_activity: bool,
 ) -> View<'m> {
     View {
         notifications,
+        by_activity,
         sidebar_scroll,
         follow_active,
         spinner_frame: frame,
@@ -188,6 +196,7 @@ fn build_view<'m>(
                     .map(|p| TabView {
                         title: p.title(),
                         status: p.status,
+                        idle_for: SystemTime::now().duration_since(p.last_active).ok(),
                     })
                     .collect(),
                 active_tab: ws.active,
@@ -351,6 +360,7 @@ impl App {
             frame,
             (self.sidebar_scroll, follow),
             self.notifications,
+            self.by_activity,
         );
         let images = &self.images;
         let spaces = &mut self.spaces;
@@ -398,14 +408,11 @@ impl App {
     /// burst of output becomes one redraw.
     fn wait(&mut self, rx: &Receiver<AppEvent>) -> Result<()> {
         let working = self.spaces.list.iter().flat_map(|ws| &ws.tabs).any(|p| p.status == Status::Working);
-        let ev = if working {
-            match rx.recv_timeout(SPINNER_TICK) {
-                Ok(ev) => ev,
-                Err(RecvTimeoutError::Timeout) => return Ok(()),
-                Err(RecvTimeoutError::Disconnected) => return Err(RecvTimeoutError::Disconnected.into()),
-            }
-        } else {
-            rx.recv()?
+        let tick = if working { SPINNER_TICK } else { IDLE_TICK };
+        let ev = match rx.recv_timeout(tick) {
+            Ok(ev) => ev,
+            Err(RecvTimeoutError::Timeout) => return Ok(()),
+            Err(RecvTimeoutError::Disconnected) => return Err(RecvTimeoutError::Disconnected.into()),
         };
         self.handle(ev)?;
         while let Ok(ev) = rx.try_recv() {
@@ -433,6 +440,11 @@ impl App {
                         news = notify::message(next, &ws, &pane.title());
                     }
                     pane.status = next;
+                    // Idle only comes from SessionStart, which also fires on
+                    // a resume; that isn't the tab doing anything.
+                    if status != Status::Idle {
+                        pane.last_active = SystemTime::now();
+                    }
                     // Turns ending are when a new generated title can appear.
                     if matches!(status, Status::Done | Status::NeedsInput) {
                         pane.refresh_transcript_title();

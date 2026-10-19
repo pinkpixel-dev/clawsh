@@ -1,6 +1,7 @@
 //! Claw$h's own chrome: sidebar, tab bar, footer, and the folder picker.
 //! Pane contents are drawn by the panes themselves.
 
+mod activity;
 mod footer;
 mod picker;
 mod sidebar;
@@ -89,6 +90,8 @@ impl Hits {
 pub struct TabView {
     pub title: String,
     pub status: Status,
+    /// How long since the tab last did anything; `None` when unknown.
+    pub idle_for: Option<std::time::Duration>,
 }
 
 pub struct WorkspaceView {
@@ -133,6 +136,8 @@ pub struct View<'a> {
     pub follow_active: bool,
     /// Desktop notifications on or off, for the footer's prefix hints.
     pub notifications: bool,
+    /// List the sidebar busiest-first instead of in open order (`ctrl+b a`).
+    pub by_activity: bool,
 }
 
 /// Draws everything except the pane. Returns the click map and, while the
@@ -206,7 +211,7 @@ mod tests {
 
     #[test]
     fn workspace_shows_its_most_urgent_tab() {
-        let tab = |status| TabView { title: String::new(), status };
+        let tab = |status| TabView { title: String::new(), status, idle_for: None };
         let ws = WorkspaceView {
             name: String::new(),
             tabs: vec![tab(Status::Done), tab(Status::NeedsInput), tab(Status::Working)],
