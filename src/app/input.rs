@@ -8,7 +8,7 @@ use crossterm::event::{
 use ratatui::layout::Position;
 
 use super::{App, Mode};
-use crate::picker::Picker;
+use crate::picker::{Kind, Picker};
 use crate::ui::Click;
 
 /// Sidebar rows moved per wheel tick.
@@ -31,6 +31,8 @@ pub(super) enum Action {
     CopyMode,
     Review,
     Rename,
+    OpenTemplate,
+    SaveTemplate,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -55,9 +57,34 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('[') => Action::CopyMode,
         KeyCode::Char('r') => Action::Review,
         KeyCode::Char(',') => Action::Rename,
+        KeyCode::Char('t') => Action::OpenTemplate,
+        KeyCode::Char('T') => Action::SaveTemplate,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
+}
+
+/// What a key did to a one-line text field.
+enum LineEdit {
+    Editing,
+    Submit,
+    Cancel,
+}
+
+/// Shared editing keys for the rename and save-as fields.
+fn edit_line(text: &mut String, k: &KeyEvent) -> LineEdit {
+    let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
+    match k.code {
+        KeyCode::Esc => return LineEdit::Cancel,
+        KeyCode::Enter => return LineEdit::Submit,
+        KeyCode::Backspace => {
+            text.pop();
+        }
+        KeyCode::Char('u') if ctrl => text.clear(),
+        KeyCode::Char(c) if !ctrl && !k.modifiers.contains(KeyModifiers::ALT) => push_name_char(text, c),
+        _ => {}
+    }
+    LineEdit::Editing
 }
 
 fn push_name_char(name: &mut String, c: char) {
@@ -72,6 +99,9 @@ fn is_prefix(k: &KeyEvent) -> bool {
 
 impl App {
     pub(super) fn key(&mut self, k: KeyEvent) -> Result<()> {
+        if k.kind == KeyEventKind::Press {
+            self.notice = None;
+        }
         match &mut self.mode {
             Mode::Normal => {
                 if is_prefix(&k) {
@@ -120,10 +150,10 @@ impl App {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
                 }
-                let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
-                match k.code {
-                    KeyCode::Esc => self.mode = Mode::Normal,
-                    KeyCode::Enter => {
+                match edit_line(text, &k) {
+                    LineEdit::Editing => {}
+                    LineEdit::Cancel => self.mode = Mode::Normal,
+                    LineEdit::Submit => {
                         // An empty name hands the tab back to auto-titling.
                         let name = text.trim().to_owned();
                         if let Some(pane) = self.spaces.active_tab_mut() {
@@ -131,14 +161,23 @@ impl App {
                         }
                         self.mode = Mode::Normal;
                     }
-                    KeyCode::Backspace => {
-                        text.pop();
+                }
+                Ok(())
+            }
+            Mode::SaveTemplate(text) => {
+                if k.kind == KeyEventKind::Release {
+                    return Ok(());
+                }
+                match edit_line(text, &k) {
+                    LineEdit::Editing => {}
+                    LineEdit::Cancel => self.mode = Mode::Normal,
+                    // An empty name keeps the field open.
+                    LineEdit::Submit if text.trim().is_empty() => {}
+                    LineEdit::Submit => {
+                        let name = std::mem::take(text);
+                        self.mode = Mode::Normal;
+                        self.save_template(&name);
                     }
-                    KeyCode::Char('u') if ctrl => text.clear(),
-                    KeyCode::Char(c) if !ctrl && !k.modifiers.contains(KeyModifiers::ALT) => {
-                        push_name_char(text, c)
-                    }
-                    _ => {}
                 }
                 Ok(())
             }
@@ -192,6 +231,8 @@ impl App {
                     self.mode = Mode::Rename(pane.title().chars().take(MAX_NAME).collect());
                 }
             }
+            Action::OpenTemplate => self.open_template_picker(),
+            Action::SaveTemplate => self.start_save_template(),
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
                 if let Some(pane) = self.spaces.active_tab_mut() {
@@ -205,7 +246,7 @@ impl App {
     fn open_picker(&mut self) {
         let extra = std::env::var("CLAWSH_PROJECTS").ok();
         let candidates = Picker::candidates(&self.launch_dir, extra.as_deref());
-        self.mode = Mode::Picker(Picker::new(candidates));
+        self.mode = Mode::Picker(Picker::folders(candidates));
     }
 
     fn open_picked(&mut self) -> Result<()> {
@@ -215,8 +256,12 @@ impl App {
         let Some(path) = picker.choice() else {
             return Ok(());
         };
+        let kind = picker.kind;
         self.mode = Mode::Normal;
-        self.open_workspace(path, &[])
+        match kind {
+            Kind::Folders => self.open_workspace(path, &[]),
+            Kind::Templates => self.open_template(&path),
+        }
     }
 
     pub(super) fn mouse(&mut self, m: MouseEvent) -> Result<()> {
@@ -295,7 +340,7 @@ impl App {
                 }
                 Ok(())
             }
-            Mode::Rename(name) => {
+            Mode::Rename(name) | Mode::SaveTemplate(name) => {
                 for c in text.lines().next().unwrap_or("").chars() {
                     push_name_char(name, c);
                 }
@@ -348,6 +393,11 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char(','))), Some(Action::Rename));
         assert_eq!(prefix_action(&key(KeyCode::Char('a'))), Some(Action::ToggleOrder));
         assert_eq!(prefix_action(&key(KeyCode::Char('r'))), Some(Action::Review));
+        assert_eq!(prefix_action(&key(KeyCode::Char('t'))), Some(Action::OpenTemplate));
+        assert_eq!(
+            prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT)),
+            Some(Action::SaveTemplate)
+        );
         assert_eq!(prefix_action(&key(KeyCode::Esc)), None);
         assert_eq!(prefix_action(&key(KeyCode::Char('0'))), None);
     }

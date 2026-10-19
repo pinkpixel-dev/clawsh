@@ -75,6 +75,8 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `[` | Copy mode: select text with the keyboard, including the scrollback |
 | `r` | Review what changed in this tab's folder and comment on it |
 | `,` | Rename the current tab |
+| `t` | Open a workspace template |
+| `T` | Save the current workspace as a template |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
@@ -84,6 +86,34 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 Tabs name themselves. Claw$h uses the title Claude gives its session (without the little status glyph in front), and when there isn't one yet, it checks the session's transcript: a name you set with `/rename`, then the title Claude generated, then the first thing you typed. That last one is what keeps a tab you only ran slash commands in from being stuck as `claude` forever.
 
 If you'd rather pick the name yourself, press `ctrl+b` then `,`. The current name is filled in so you can tweak it, `Enter` saves, and `esc` cancels. A name you set sticks, even across restarts. Save an empty name to hand the tab back to auto-naming.
+
+### Workspace templates
+
+If you open the same project with the same set of tabs over and over, save it as a template. Set things up the way you like, press `ctrl+b` then `T`, type a name (the folder's name is filled in), and press `Enter`. Later, `ctrl+b` then `t` opens a picker of your templates, and picking one opens its folder as a new workspace with all its tabs.
+
+Templates are plain TOML files in `~/.config/clawsh/templates/` (or `$XDG_CONFIG_HOME/clawsh/templates/`), one per template, so you can also write or tweak them by hand:
+
+```toml
+name = "slate"
+path = "~/code/slate"
+
+[[tabs]]
+name = "main"
+
+[[tabs]]
+name = "review"
+args = ["--model", "opus"]
+prompt = "Read DOCS/ROADMAP.md and tell me what's next"
+```
+
+Each tab can have a `name` (same as setting one with `ctrl+b ,`), extra `claude` flags in `args`, and a `prompt` that gets sent as the first message when the tab starts. All three are optional. A template with no tabs opens one plain tab.
+
+A few things to know:
+
+- Templates always start new conversations. Saving one records the folder, the names you gave tabs, and the flags and prompt of tabs that came from a template, but never which conversation a tab was in.
+- Saving under a name that already exists replaces that template.
+- If the template's folder is already open as a workspace, Claw$h just switches to it, the same as opening that folder from `ctrl+b w`.
+- A file that doesn't parse still shows up in the picker with its error, so it doesn't just quietly disappear.
 
 ### Tab status
 

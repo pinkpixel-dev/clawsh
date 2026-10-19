@@ -11,6 +11,7 @@ mod shm;
 mod picker;
 mod review;
 mod status;
+mod template;
 mod theme;
 mod title;
 mod ui;

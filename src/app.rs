@@ -1,6 +1,7 @@
 mod input;
 mod review;
 mod session;
+mod templates;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -43,6 +44,8 @@ enum Mode {
     Copy,
     /// Typing a new name for the active tab (`ctrl+b ,`).
     Rename(String),
+    /// Typing a name to save the workspace as a template (`ctrl+b T`).
+    SaveTemplate(String),
     /// The active pane's review view covers the pane area (`ctrl+b r`).
     Review,
 }
@@ -88,6 +91,9 @@ struct App {
     sidebar_scroll: usize,
     /// The (workspace, tab) the sidebar last scrolled to show.
     sidebar_followed: Option<(usize, usize)>,
+    /// A one-line result (like a saved template) shown in the footer until
+    /// the next key.
+    notice: Option<String>,
     quit: bool,
     cursor_style: Option<CursorState>,
 }
@@ -131,6 +137,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         hits: Hits::default(),
         sidebar_scroll: 0,
         sidebar_followed: None,
+        notice: None,
         quit: false,
         cursor_style: None,
     };
@@ -177,10 +184,11 @@ fn build_view<'m>(
     usage: Option<&'m Report>,
     frame: usize,
     (sidebar_scroll, follow_active): (usize, bool),
-    notifications: bool,
-    by_activity: bool,
+    (notifications, by_activity): (bool, bool),
+    notice: Option<&'m str>,
 ) -> View<'m> {
     View {
+        notice,
         notifications,
         by_activity,
         sidebar_scroll,
@@ -211,6 +219,7 @@ fn build_view<'m>(
             Mode::Prefix => ui::Mode::Prefix,
             Mode::Copy => ui::Mode::Copy,
             Mode::Rename(text) => ui::Mode::Rename(text),
+            Mode::SaveTemplate(text) => ui::Mode::SaveTemplate(text),
             Mode::Picker(p) => ui::Mode::Picker(p),
             Mode::Review => ui::Mode::Review(
                 spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),
@@ -372,8 +381,8 @@ impl App {
             self.usage.as_ref(),
             frame,
             (self.sidebar_scroll, follow),
-            self.notifications,
-            self.by_activity,
+            (self.notifications, self.by_activity),
+            self.notice.as_deref(),
         );
         let images = &self.images;
         let spaces = &mut self.spaces;

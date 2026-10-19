@@ -150,6 +150,7 @@ mod tests {
     fn view(active: usize, scroll: usize, follow: bool) -> View<'static> {
         let tab = |t: &str| TabView { title: t.into(), status: Status::Idle, idle_for: None };
         View {
+            notice: None,
             spinner_frame: 0,
             usage: None,
             now: chrono::Utc::now(),

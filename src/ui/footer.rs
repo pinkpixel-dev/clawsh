@@ -1,14 +1,25 @@
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::{Mode, View};
 use crate::theme;
 
-pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
+/// Draws the footer. While a template name is being typed, it goes on the
+/// left and this returns where the cursor belongs.
+pub fn draw(frame: &mut Frame, area: Rect, view: &View) -> Option<Position> {
     let mut left = vec![Span::styled(" Claw$h ", theme::accent())];
-    if let Some(ws) = view.workspaces.get(view.active) {
+    let mut cursor = None;
+    if let Mode::SaveTemplate(name) = view.mode {
+        left.push(Span::styled("save template as ", theme::muted()));
+        let before: u16 = left.iter().map(|s| s.width() as u16).sum();
+        left.push(Span::raw(name.to_owned()));
+        let at = area.x + before + Span::raw(name).width() as u16;
+        cursor = Some(Position::new(at.min(area.right().saturating_sub(1)), area.y));
+    } else if let Some(notice) = view.notice {
+        left.push(Span::raw(notice.to_owned()));
+    } else if let Some(ws) = view.workspaces.get(view.active) {
         left.push(Span::raw(ws.name.clone()));
         if let Some(tab) = ws.tabs.get(ws.active_tab) {
             left.push(Span::styled(" › ", theme::faint()));
@@ -29,6 +40,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
             ("[", "copy"),
             ("r", "review"),
             (",", "rename"),
+            ("t/T", "templates"),
             ("s", "sidebar"),
             ("a", order),
             ("m", notify),
@@ -37,6 +49,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
         ],
         Mode::Picker(_) => &[("enter", "open"), ("↑↓", "move"), ("esc", "cancel")],
         Mode::Rename(_) => &[("enter", "save"), ("empty", "auto"), ("esc", "cancel")],
+        Mode::SaveTemplate(_) => &[("enter", "save"), ("esc", "cancel")],
         Mode::Review(true) => &[("enter", "save"), ("empty", "delete"), ("esc", "cancel")],
         Mode::Review(false) => &[
             ("u/t", "scope"),
@@ -70,4 +83,5 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
         Layout::horizontal([Constraint::Min(0), Constraint::Length(right_width)]).areas(area);
     frame.render_widget(Paragraph::new(Line::from(left)).style(theme::bar()), l);
     frame.render_widget(Paragraph::new(Line::from(right)).style(theme::bar()), r);
+    cursor
 }

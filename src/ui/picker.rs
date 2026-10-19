@@ -4,9 +4,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Clear};
 
 use super::{Click, Hits, truncate};
-use crate::picker::Picker;
+use crate::picker::{Kind, Picker};
 use crate::theme;
-use crate::workspace::folder_name;
 
 const WIDTH: u16 = 72;
 const HEIGHT: u16 = 18;
@@ -24,8 +23,12 @@ pub fn draw(frame: &mut Frame, picker: &Picker, hits: &mut Hits) -> Position {
         h,
     );
 
+    let (title, empty) = match picker.kind {
+        Kind::Folders => (" Open workspace ", "no matching folders, type a path to open any folder"),
+        Kind::Templates => (" Open template ", "no templates yet, save one with ctrl+b T"),
+    };
     let block = Block::bordered()
-        .title(Span::styled(" Open workspace ", theme::accent()))
+        .title(Span::styled(title, theme::accent()))
         .border_style(theme::border())
         .style(theme::panel());
     let inner = block.inner(area);
@@ -59,23 +62,22 @@ pub fn draw(frame: &mut Frame, picker: &Picker, hits: &mut Hits) -> Position {
     // Keep the selection on screen.
     let first = picker.selected.saturating_sub(rows.saturating_sub(1));
     let name_width = 24;
-    for (row, (i, path)) in picker.items().enumerate().skip(first).take(rows).enumerate() {
+    for (row, (i, entry)) in picker.items().enumerate().skip(first).take(rows).enumerate() {
         let y = list_top + row as u16;
         let selected = i == picker.selected;
         let row_rect = Rect::new(inner.x, y, inner.width, 1);
         let base = if selected { theme::active_row() } else { theme::panel() };
         buf.set_style(row_rect, base);
-        let parent = path.parent().map(|p| p.display().to_string()).unwrap_or_default();
         let line = Line::from(vec![
             Span::styled(if selected { " › " } else { "   " }, theme::accent()),
-            Span::styled(format!("{:<name_width$}", truncate(&folder_name(path), name_width)), base),
-            Span::styled(format!(" {parent}"), theme::faint()),
+            Span::styled(format!("{:<name_width$}", truncate(&entry.name, name_width)), base),
+            Span::styled(format!(" {}", entry.detail), theme::faint()),
         ]);
         buf.set_line(inner.x, y, &line, inner.width);
         hits.push(row_rect, Click::PickerItem(i));
     }
     if picker.items().next().is_none() {
-        let line = Line::from(Span::styled("   no matching folders, type a path to open any folder", theme::faint()));
+        let line = Line::from(Span::styled(format!("   {empty}"), theme::faint()));
         buf.set_line(inner.x, list_top, &line, inner.width);
     }
     cursor

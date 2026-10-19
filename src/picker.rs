@@ -1,27 +1,57 @@
-//! The "new workspace" folder picker: candidates, fuzzy filtering, and
-//! typed paths.
+//! The fuzzy pickers: folders for a new workspace (with typed paths), and
+//! saved workspace templates.
 
 use std::path::{Path, PathBuf};
 
 use crate::workspace::folder_name;
 
+/// What a picker lists, which decides its title and what Enter does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Folders,
+    Templates,
+}
+
+/// One row: the name that's matched against, a faint detail beside it, and
+/// the path it stands for (a folder, or a template file).
+pub struct Entry {
+    pub name: String,
+    pub detail: String,
+    pub path: PathBuf,
+}
+
 pub struct Picker {
+    pub kind: Kind,
     pub query: String,
     pub selected: usize,
-    candidates: Vec<PathBuf>,
+    entries: Vec<Entry>,
     matches: Vec<usize>,
 }
 
 impl Picker {
-    pub fn new(candidates: Vec<PathBuf>) -> Self {
+    pub fn new(kind: Kind, entries: Vec<Entry>) -> Self {
         let mut picker = Self {
+            kind,
             query: String::new(),
             selected: 0,
-            candidates,
+            entries,
             matches: Vec::new(),
         };
         picker.refilter();
         picker
+    }
+
+    /// Folders, each named by its last part with its parent beside it.
+    pub fn folders(candidates: Vec<PathBuf>) -> Self {
+        let entries = candidates
+            .into_iter()
+            .map(|path| Entry {
+                name: folder_name(&path),
+                detail: path.parent().map(|p| p.display().to_string()).unwrap_or_default(),
+                path,
+            })
+            .collect();
+        Self::new(Kind::Folders, entries)
     }
 
     /// The launch folder, its sibling folders, and the children of every
@@ -70,14 +100,14 @@ impl Picker {
     }
 
     /// The visible matches, best first.
-    pub fn items(&self) -> impl Iterator<Item = &Path> {
-        self.matches.iter().map(|&i| self.candidates[i].as_path())
+    pub fn items(&self) -> impl Iterator<Item = &Entry> {
+        self.matches.iter().map(|&i| &self.entries[i])
     }
 
-    /// A typed path that names an existing folder.
+    /// A typed path that names an existing folder (folder pickers only).
     pub fn typed_dir(&self) -> Option<PathBuf> {
         let q = self.query.trim();
-        if !(q.starts_with('/') || q.starts_with('~')) {
+        if self.kind != Kind::Folders || !(q.starts_with('/') || q.starts_with('~')) {
             return None;
         }
         Some(expand_home(q)).filter(|p| p.is_dir())
@@ -86,7 +116,7 @@ impl Picker {
     /// What Enter opens: a typed folder wins, then the selected match.
     pub fn choice(&self) -> Option<PathBuf> {
         self.typed_dir()
-            .or_else(|| self.items().nth(self.selected).map(Path::to_path_buf))
+            .or_else(|| self.items().nth(self.selected).map(|e| e.path.clone()))
     }
 
     pub fn select(&mut self, index: usize) {
@@ -98,10 +128,10 @@ impl Picker {
     fn refilter(&mut self) {
         let q = self.query.trim().to_lowercase();
         let mut scored: Vec<(i32, usize)> = self
-            .candidates
+            .entries
             .iter()
             .enumerate()
-            .filter_map(|(i, p)| score(&q, &folder_name(p).to_lowercase()).map(|s| (s, i)))
+            .filter_map(|(i, e)| score(&q, &e.name.to_lowercase()).map(|s| (s, i)))
             .collect();
         // Stable sort keeps the launch folder and alphabetical order on ties.
         scored.sort_by_key(|&(s, _)| -s);
@@ -131,7 +161,7 @@ fn score(query: &str, name: &str) -> Option<i32> {
     Some(total - name.len() as i32 / 8)
 }
 
-fn expand_home(path: &str) -> PathBuf {
+pub fn expand_home(path: &str) -> PathBuf {
     match (path.strip_prefix('~'), std::env::var_os("HOME")) {
         (Some(rest), Some(home)) => PathBuf::from(home).join(rest.trim_start_matches('/')),
         _ => PathBuf::from(path),
@@ -163,7 +193,7 @@ mod tests {
 
     #[test]
     fn fuzzy_filter_prefers_prefixes() {
-        let mut p = Picker::new(
+        let mut p = Picker::folders(
             ["/p/packrat", "/p/quota", "/p/quota-cli", "/p/slate"]
                 .map(PathBuf::from)
                 .to_vec(),
@@ -171,7 +201,7 @@ mod tests {
         for c in "qt".chars() {
             p.push(c);
         }
-        let names: Vec<String> = p.items().map(folder_name).collect();
+        let names: Vec<&str> = p.items().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["quota", "quota-cli"]);
         p.backspace();
         p.backspace();
@@ -183,17 +213,26 @@ mod tests {
     #[test]
     fn typed_folders_win() {
         let root = temp_tree("typed", &["deep/folder"]);
-        let mut p = Picker::new(vec![PathBuf::from("/p/quota")]);
-        for c in root.join("deep/folder").to_string_lossy().chars() {
+        let typed = root.join("deep/folder");
+        let mut p = Picker::folders(vec![PathBuf::from("/p/quota")]);
+        for c in typed.to_string_lossy().chars() {
             p.push(c);
         }
-        assert_eq!(p.choice(), Some(root.join("deep/folder")));
+        assert_eq!(p.choice(), Some(typed.clone()));
+
+        // Template pickers match names only; a path is just a query.
+        let entry = Entry { name: "slate".into(), detail: String::new(), path: "/t/slate.toml".into() };
+        let mut t = Picker::new(Kind::Templates, vec![entry]);
+        for c in typed.to_string_lossy().chars() {
+            t.push(c);
+        }
+        assert_eq!(t.typed_dir(), None);
         std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn selection_stays_in_bounds() {
-        let mut p = Picker::new(["/a", "/b"].map(PathBuf::from).to_vec());
+        let mut p = Picker::folders(["/a", "/b"].map(PathBuf::from).to_vec());
         p.move_by(5);
         assert_eq!(p.selected, 1);
         p.move_by(-9);

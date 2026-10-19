@@ -26,6 +26,7 @@ use crate::host_colors::HostColors;
 use crate::persist::SessionRef;
 use crate::review::Review;
 use crate::status::Status;
+use crate::template;
 use crate::theme;
 use crate::title;
 
@@ -56,6 +57,9 @@ pub struct Pane {
     pub turn_start: Option<String>,
     /// The review view's state, kept so comments survive closing it.
     pub review: Option<Review>,
+    /// The template tab this pane was opened from, so `ctrl+b T` can save
+    /// its flags and prompt again.
+    pub from_template: Option<template::Tab>,
 }
 
 impl Pane {
@@ -90,6 +94,7 @@ impl Pane {
             last_active: SystemTime::now(),
             turn_start: None,
             review: None,
+            from_template: None,
         })
     }
 

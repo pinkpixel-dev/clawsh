@@ -58,6 +58,11 @@
 - Tabs name themselves from Claude's session title, falling back to the transcript (`/rename` name, Claude's generated title, then your first prompt)
 - `ctrl+b ,` renames the current tab; your name sticks across restarts, and an empty name goes back to auto-naming
 - Sidebar tab titles take their status color, and idle tabs fade with age (muted after 15 minutes, dimmed after 2 hours)
+
+### 📐 Templates
+- Workspace templates: a folder plus named tabs, each with optional `claude` flags and an opening prompt, stored as TOML in `~/.config/clawsh/templates/`
+- `ctrl+b t` opens a template from a fuzzy picker, and `ctrl+b T` saves the current workspace as one
+- Templates always start new conversations; opening one whose folder is already open just switches to it
 - `ctrl+b a` sorts the sidebar by activity, without changing tab numbers; the choice is remembered
 
 ### 🔍 Review

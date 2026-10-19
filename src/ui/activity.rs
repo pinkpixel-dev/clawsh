@@ -105,6 +105,7 @@ mod tests {
     fn view(by_activity: bool) -> View<'static> {
         let ws = |tabs| WorkspaceView { name: String::new(), tabs, active_tab: 0 };
         View {
+            notice: None,
             spinner_frame: 0,
             usage: None,
             now: chrono::Utc::now(),

@@ -119,11 +119,15 @@ pub enum Mode<'a> {
     Copy,
     /// The active tab's name, being edited.
     Rename(&'a str),
+    /// A template name, being typed in the footer.
+    SaveTemplate(&'a str),
     /// The review view; `true` while a comment is being typed.
     Review(bool),
 }
 
 pub struct View<'a> {
+    /// A one-line result for the footer, like a saved template.
+    pub notice: Option<&'a str>,
     /// Advances while anything is working, to animate the spinner.
     pub spinner_frame: usize,
     /// Claude's limits, shown once at the bottom of the sidebar. `None` when
@@ -144,17 +148,17 @@ pub struct View<'a> {
 }
 
 /// Draws everything except the pane. Returns the click map and, while the
-/// picker or a rename is open, where its text cursor goes.
+/// picker or a text field is open, where its text cursor goes.
 pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Option<Position>) {
     let mut hits = Hits::default();
     if let Some(area) = areas.sidebar {
         sidebar::draw(frame, area, view, &mut hits);
     }
     let rename_cursor = tabbar::draw(frame, areas.tabbar, view, &mut hits);
-    footer::draw(frame, areas.footer, view);
+    let footer_cursor = footer::draw(frame, areas.footer, view);
     let cursor = match view.mode {
         Mode::Picker(p) => Some(picker::draw(frame, p, &mut hits)),
-        _ => rename_cursor,
+        _ => rename_cursor.or(footer_cursor),
     };
     (hits, cursor)
 }
