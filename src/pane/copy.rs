@@ -6,9 +6,11 @@
 //! clipboard with OSC 52. Positions are kept in full-scrollback coordinates
 //! ([`Spot`]) so a selection stays put while the view scrolls.
 
+use std::time::{Duration, Instant};
+
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use libghostty_vt::selection::{FormatOptions, Selection};
+use libghostty_vt::selection::{FormatOptions, SelectLineOptions, SelectWordOptions, Selection};
 use libghostty_vt::terminal::{Point, PointCoordinate, ScrollViewport};
 use ratatui::layout::Position;
 
@@ -72,6 +74,26 @@ impl Emulator {
         Ok(())
     }
 
+    /// Selects the word under `at`. False when there's no word there.
+    pub(super) fn select_word_at(&mut self, at: Spot) -> Result<bool> {
+        let cell = self.term.grid_ref(at.point())?;
+        let Some(word) = self.term.select_word(SelectWordOptions::new(cell))? else {
+            return Ok(false);
+        };
+        self.term.set_selection(Some(&word))?;
+        Ok(true)
+    }
+
+    /// Selects the line under `at`, without its leading and trailing blanks.
+    pub(super) fn select_line_at(&mut self, at: Spot) -> Result<bool> {
+        let cell = self.term.grid_ref(at.point())?;
+        let Some(line) = self.term.select_line(SelectLineOptions::new(cell))? else {
+            return Ok(false);
+        };
+        self.term.set_selection(Some(&line))?;
+        Ok(true)
+    }
+
     pub(super) fn clear_selection(&mut self) -> Result<()> {
         self.term.set_selection(None)?;
         Ok(())
@@ -101,6 +123,27 @@ impl Emulator {
             self.term.scroll_viewport(ScrollViewport::Row((y + 1 - m.rows) as usize));
         }
         Ok(())
+    }
+}
+
+/// How long a second press can wait and still count as a double click.
+const REPEAT: Duration = Duration::from_millis(400);
+
+/// Counts quick presses on the same cell: 1, 2 (word), 3 (line), then 1 again.
+#[derive(Default)]
+pub struct Clicks {
+    last: Option<(Spot, Instant)>,
+    count: u8,
+}
+
+impl Clicks {
+    pub fn press(&mut self, at: Spot, now: Instant) -> u8 {
+        let repeat = self
+            .last
+            .is_some_and(|(spot, when)| spot == at && now.duration_since(when) <= REPEAT);
+        self.count = if repeat && self.count < 3 { self.count + 1 } else { 1 };
+        self.last = Some((at, now));
+        self.count
     }
 }
 

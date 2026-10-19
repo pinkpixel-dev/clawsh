@@ -117,3 +117,31 @@ fn mouse_drags_select_by_view_position() {
     emu.select(blank, emu.spot_at_view(18, 3).unwrap()).unwrap();
     assert!(!emu.copy_selection().unwrap());
 }
+
+#[test]
+fn double_click_selects_a_word_and_triple_click_the_line() {
+    let mut emu = emulator(&["  alpha beta-gamma  ", "next"]);
+    let on_beta = emu.spot_at_view(10, 0).unwrap();
+    assert!(emu.select_word_at(on_beta).unwrap());
+    assert!(emu.copy_selection().unwrap());
+    assert_eq!(clipboard(&mut emu), "beta-gamma");
+    assert!(emu.select_line_at(on_beta).unwrap());
+    assert!(emu.copy_selection().unwrap());
+    assert_eq!(clipboard(&mut emu), "alpha beta-gamma");
+}
+
+#[test]
+fn clicks_count_quick_presses_on_the_same_cell() {
+    let mut clicks = Clicks::default();
+    let here = Spot { x: 3, y: 1 };
+    let t = Instant::now();
+    let ms = Duration::from_millis;
+    assert_eq!(clicks.press(here, t), 1);
+    assert_eq!(clicks.press(here, t + ms(150)), 2);
+    assert_eq!(clicks.press(here, t + ms(300)), 3);
+    // A fourth quick press starts over.
+    assert_eq!(clicks.press(here, t + ms(450)), 1);
+    // Too slow, or somewhere else, is a fresh single click.
+    assert_eq!(clicks.press(here, t + ms(1000)), 1);
+    assert_eq!(clicks.press(Spot { x: 4, y: 1 }, t + ms(1100)), 1);
+}

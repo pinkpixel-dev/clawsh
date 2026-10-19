@@ -6,6 +6,7 @@ pub(crate) mod pty;
 
 use std::path::Path;
 use std::sync::mpsc::Sender;
+use std::time::Instant;
 
 use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
@@ -16,7 +17,7 @@ use ratatui::style::Style;
 
 pub use emulator::{CursorState, Emulator, ImageData};
 use input::InputEncoder;
-use copy::{CopyMode, CopyOutcome, Spot};
+use copy::{Clicks, CopyMode, CopyOutcome, Spot};
 use pty::Pty;
 
 use crate::event::AppEvent;
@@ -41,6 +42,8 @@ pub struct Pane {
     copy: Option<CopyMode>,
     /// Where a mouse selection started, while the button is held.
     drag: Option<Spot>,
+    /// Repeat presses, for double-click word and triple-click line.
+    clicks: Clicks,
 }
 
 impl Pane {
@@ -69,6 +72,7 @@ impl Pane {
             session: None,
             copy: None,
             drag: None,
+            clicks: Clicks::default(),
         })
     }
 
@@ -185,7 +189,8 @@ impl Pane {
     }
 
     /// Drag-to-select for programs that don't use the mouse themselves.
-    /// Releasing the button copies the selection. Returns false for events
+    /// Releasing the button copies the selection; a double click copies the
+    /// word under it and a triple click the line. Returns false for events
     /// it doesn't handle (wheel, other buttons).
     fn select_with_mouse(&mut self, ev: &MouseEvent) -> Result<bool> {
         let x = ev.column.saturating_sub(self.area.x).min(self.area.width.saturating_sub(1));
@@ -193,8 +198,20 @@ impl Pane {
         let left = MouseButton::Left;
         match ev.kind {
             MouseEventKind::Down(b) if b == left => {
-                self.drag = Some(self.emu.spot_at_view(x, y)?);
-                self.emu.clear_selection()?;
+                let at = self.emu.spot_at_view(x, y)?;
+                self.drag = None;
+                let picked = match self.clicks.press(at, Instant::now()) {
+                    2 => self.emu.select_word_at(at)?,
+                    3 => self.emu.select_line_at(at)?,
+                    _ => {
+                        self.drag = Some(at);
+                        self.emu.clear_selection()?;
+                        false
+                    }
+                };
+                if picked {
+                    self.emu.copy_selection()?;
+                }
             }
             MouseEventKind::Drag(b) if b == left => {
                 let Some(start) = self.drag else { return Ok(false) };
