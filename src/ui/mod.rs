@@ -60,17 +60,25 @@ pub enum Click {
     PickerBackground,
 }
 
-/// Clickable regions from the last frame. Later entries sit on top.
+/// Clickable regions from the last frame (later entries sit on top), plus
+/// where the sidebar's scrolling list ended up.
 #[derive(Default)]
-pub struct Hits(Vec<(Rect, Click)>);
+pub struct Hits {
+    regions: Vec<(Rect, Click)>,
+    /// The part of the sidebar that scrolls, for the mouse wheel.
+    pub sidebar_list: Option<Rect>,
+    /// The scroll offset the sidebar actually used, after clamping and
+    /// following the active tab.
+    pub sidebar_scroll: usize,
+}
 
 impl Hits {
     fn push(&mut self, rect: Rect, click: Click) {
-        self.0.push((rect, click));
+        self.regions.push((rect, click));
     }
 
     pub fn at(&self, x: u16, y: u16) -> Option<Click> {
-        self.0
+        self.regions
             .iter()
             .rev()
             .find(|(r, _)| r.contains(Position::new(x, y)))
@@ -116,6 +124,10 @@ pub struct View<'a> {
     pub workspaces: Vec<WorkspaceView>,
     pub active: usize,
     pub mode: Mode<'a>,
+    /// Rows scrolled off the top of the sidebar's workspace list.
+    pub sidebar_scroll: usize,
+    /// The active tab just changed, so the sidebar should scroll to show it.
+    pub follow_active: bool,
 }
 
 /// Draws everything except the pane. Returns the click map and, while the

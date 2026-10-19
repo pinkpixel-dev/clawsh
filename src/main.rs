@@ -4,6 +4,7 @@ mod graphics;
 mod host;
 mod pane;
 mod persist;
+mod shm;
 mod picker;
 mod status;
 mod theme;

@@ -66,6 +66,10 @@ struct App {
     host_focused: bool,
     mode: Mode,
     hits: Hits,
+    /// Rows scrolled off the top of the sidebar's workspace list.
+    sidebar_scroll: usize,
+    /// The (workspace, tab) the sidebar last scrolled to show.
+    sidebar_followed: Option<(usize, usize)>,
     quit: bool,
     cursor_style: Option<CursorState>,
 }
@@ -104,6 +108,8 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         host_focused: true,
         mode: Mode::Normal,
         hits: Hits::default(),
+        sidebar_scroll: 0,
+        sidebar_followed: None,
         quit: false,
         cursor_style: None,
     };
@@ -117,6 +123,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
         while !app.quit {
             app.draw(term)?;
             app.wait(&rx)?;
+            app.flush_pane_output()?;
             app.save_session();
         }
         Ok(())
@@ -143,8 +150,11 @@ fn build_view<'m>(
     mode: &'m Mode,
     usage: Option<&'m Report>,
     frame: usize,
+    (sidebar_scroll, follow_active): (usize, bool),
 ) -> View<'m> {
     View {
+        sidebar_scroll,
+        follow_active,
         spinner_frame: frame,
         usage,
         now: chrono::Utc::now(),
@@ -235,6 +245,15 @@ impl App {
         Ok(())
     }
 
+    /// Sends what panes queued for the host terminal, like clipboard writes.
+    fn flush_pane_output(&mut self) -> Result<()> {
+        let mut out = Vec::new();
+        for pane in self.spaces.tabs_mut() {
+            out.extend(pane.take_host_output());
+        }
+        write_host(&out)
+    }
+
     fn active_id(&self) -> Option<usize> {
         self.spaces.active_tab().map(Pane::id)
     }
@@ -276,7 +295,18 @@ impl App {
         write_host(&out)?;
 
         let frame = (self.started.elapsed().as_millis() / SPINNER_TICK.as_millis()) as usize;
-        let view = build_view(&self.spaces, &self.mode, self.usage.as_ref(), frame);
+        // Scroll the sidebar to the active tab only when it changes, so the
+        // mouse wheel can still look around in between.
+        let active = self.spaces.current().map(|ws| (self.spaces.active, ws.active));
+        let follow = active != self.sidebar_followed;
+        self.sidebar_followed = active;
+        let view = build_view(
+            &self.spaces,
+            &self.mode,
+            self.usage.as_ref(),
+            frame,
+            (self.sidebar_scroll, follow),
+        );
         let images = &self.images;
         let spaces = &mut self.spaces;
         let normal = matches!(self.mode, Mode::Normal);
@@ -300,6 +330,7 @@ impl App {
                 frame.set_cursor_position((area.x + c.position.x, area.y + c.position.y));
             }
         })?;
+        self.sidebar_scroll = hits.sidebar_scroll;
         self.hits = hits;
 
         // Old animation frames go only once the new cells are on screen.

@@ -15,6 +15,7 @@
 //! that frame is drawn (see [`ImageBridge::after_draw`]).
 
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write as _;
 use std::io::Write;
 
 use anyhow::Result;
@@ -23,6 +24,7 @@ use base64::engine::general_purpose::STANDARD;
 use libghostty_vt::kitty::graphics::ImageFormat;
 
 use crate::pane::{Emulator, ImageData};
+use crate::shm::ShmWriter;
 
 /// Kitty caps a direct-transmission chunk at 4096 bytes of base64.
 const CHUNK: usize = 4096;
@@ -66,14 +68,28 @@ pub struct ImageBridge {
     panes: HashMap<usize, PaneImages>,
     /// Host IDs that were swapped out this frame, deleted after the draw.
     retired: Vec<u32>,
+    /// Pixels go through shared memory when the terminal is local, base64
+    /// otherwise.
+    shm: Option<ShmWriter>,
 }
 
 impl ImageBridge {
     pub fn new() -> Self {
+        Self::with_shm(ShmWriter::detect())
+    }
+
+    /// Always sends pixels as base64, like over SSH.
+    #[cfg(test)]
+    pub fn direct() -> Self {
+        Self::with_shm(None)
+    }
+
+    pub fn with_shm(shm: Option<ShmWriter>) -> Self {
         Self {
             next_low: FIRST_HOST_ID,
             panes: HashMap::new(),
             retired: Vec::new(),
+            shm,
         }
     }
 
@@ -126,7 +142,7 @@ impl ImageBridge {
                         ([high | a, high | b], 0)
                     }
                 };
-                if !transmit(out, ids[slot], &img) {
+                if !transmit(out, ids[slot], &img, self.shm.as_mut()) {
                     continue;
                 }
                 for (i, size) in sizes.iter().enumerate() {
@@ -177,6 +193,9 @@ impl ImageBridge {
         for id in self.retired.drain(..) {
             delete(out, id);
         }
+        if let Some(shm) = &mut self.shm {
+            shm.expire();
+        }
     }
 
     /// Deletes one pane's images from the host, for when the pane closes.
@@ -198,6 +217,9 @@ impl ImageBridge {
         }
         self.panes.clear();
         self.after_draw(out);
+        if let Some(shm) = &mut self.shm {
+            shm.cleanup();
+        }
     }
 }
 
@@ -206,8 +228,9 @@ fn next_low(low: u32) -> u32 {
     if next == 0 { 1 } else { next }
 }
 
-/// Appends an `a=t` upload. Returns false for formats we can't forward.
-fn transmit(out: &mut Vec<u8>, host_id: u32, img: &ImageData) -> bool {
+/// Appends an `a=t` upload, through shared memory when `shm` is given and the
+/// write works, base64 otherwise. Returns false for formats we can't forward.
+fn transmit(out: &mut Vec<u8>, host_id: u32, img: &ImageData, shm: Option<&mut ShmWriter>) -> bool {
     let widened;
     let (format, pixels): (u8, &[u8]) = match img.format {
         ImageFormat::Rgb => (24, &img.data),
@@ -232,6 +255,19 @@ fn transmit(out: &mut Vec<u8>, host_id: u32, img: &ImageData) -> bool {
         return false;
     }
 
+    let mut header = format!("a=t,q=2,i={host_id},f={format}");
+    if format != 100 {
+        let _ = write!(header, ",s={},v={}", img.width, img.height);
+    }
+    if img.compressed {
+        header.push_str(",o=z");
+    }
+
+    if let Some(Ok(name)) = shm.map(|shm| shm.write(pixels)) {
+        let _ = write!(out, "\x1b_G{header},t=s,S={};{}\x1b\\", pixels.len(), STANDARD.encode(name));
+        return true;
+    }
+
     let encoded = STANDARD.encode(pixels);
     let mut chunks = encoded.as_bytes().chunks(CHUNK).peekable();
     let mut first = true;
@@ -239,14 +275,7 @@ fn transmit(out: &mut Vec<u8>, host_id: u32, img: &ImageData) -> bool {
         let more = u8::from(chunks.peek().is_some());
         out.extend_from_slice(b"\x1b_G");
         if first {
-            let _ = write!(out, "a=t,q=2,i={host_id},f={format}");
-            if format != 100 {
-                let _ = write!(out, ",s={},v={}", img.width, img.height);
-            }
-            if img.compressed {
-                out.extend_from_slice(b",o=z");
-            }
-            out.push(b',');
+            let _ = write!(out, "{header},");
             first = false;
         }
         let _ = write!(out, "m={more};");

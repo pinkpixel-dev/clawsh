@@ -11,6 +11,9 @@ use super::{App, Mode};
 use crate::picker::Picker;
 use crate::ui::Click;
 
+/// Sidebar rows moved per wheel tick.
+const SIDEBAR_WHEEL: usize = 3;
+
 /// What a key after `ctrl+b` does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Action {
@@ -159,6 +162,17 @@ impl App {
                 _ => {}
             }
             return Ok(());
+        }
+
+        // The wheel over the sidebar's list scrolls it; the next draw clamps.
+        if let Some(list) = self.hits.sidebar_list
+            && list.contains(Position::new(m.column, m.row))
+        {
+            match m.kind {
+                MouseEventKind::ScrollUp => self.sidebar_scroll = self.sidebar_scroll.saturating_sub(SIDEBAR_WHEEL),
+                MouseEventKind::ScrollDown => self.sidebar_scroll += SIDEBAR_WHEEL,
+                _ => {}
+            }
         }
 
         if let Some(click) = hit {

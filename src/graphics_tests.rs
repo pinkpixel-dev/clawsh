@@ -61,7 +61,7 @@ fn forwards_new_images_once() {
     assert_eq!(placements.len(), 1);
     assert_eq!((placements[0].image_id, placements[0].cols, placements[0].rows), (7, 2, 1));
 
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     let mut out = Vec::new();
     bridge.sync(0, &mut emu, &mut out).unwrap();
     let host = FIRST_HOST_ID;
@@ -81,7 +81,7 @@ fn panes_never_share_host_ids() {
     let (mut b, _) = emulator();
     upload_rgb(&mut a, 1);
     upload_rgb(&mut b, 1);
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     let mut out = Vec::new();
     bridge.sync(0, &mut a, &mut out).unwrap();
     bridge.sync(1, &mut b, &mut out).unwrap();
@@ -93,7 +93,7 @@ fn panes_never_share_host_ids() {
 fn deleted_images_leave_the_host() {
     let (mut emu, _) = emulator();
     upload_rgb(&mut emu, 7);
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     let mut out = Vec::new();
     bridge.sync(0, &mut emu, &mut out).unwrap();
 
@@ -113,7 +113,7 @@ fn placeholders_render_with_the_host_id() {
     emu.feed("\x1b[38;5;7m\u{10EEEE}\u{0305}\u{0305}\u{10EEEE}\u{0305}\u{030D}".as_bytes());
     emu.feed("\x1b[38;5;9m\u{10EEEE}\u{0305}\u{0305}\x1b[39m".as_bytes());
 
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     bridge.sync(0, &mut emu, &mut Vec::new()).unwrap();
 
     let area = Rect::new(0, 0, 20, 4);
@@ -162,7 +162,7 @@ fn large_images_are_chunked() {
         data: vec![7; 64 * 64 * 4],
     };
     let mut out = Vec::new();
-    assert!(transmit(&mut out, 42, &img));
+    assert!(transmit(&mut out, 42, &img, None));
     let out = text(&out);
     // 16384 bytes -> 21848 base64 chars -> 6 chunks, only the last with m=0.
     assert_eq!(out.matches("\x1b_G").count(), 6);
@@ -174,7 +174,7 @@ fn large_images_are_chunked() {
 #[test]
 fn reuploads_send_one_placement_per_size() {
     let (mut emu, _) = emulator();
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     // Claude re-sends an animated image with a=T each frame, and libghostty
     // keeps a new placement for every one of them.
     for _ in 0..5 {
@@ -196,7 +196,7 @@ fn reuploads_send_one_placement_per_size() {
 #[test]
 fn new_frames_swap_ids_without_a_gap() {
     let (mut emu, _) = emulator();
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     let (a, b) = (FIRST_HOST_ID, FIRST_HOST_ID + 1);
 
     upload_rgb(&mut emu, 7);
@@ -230,10 +230,35 @@ fn placeholders_drop_the_pane_placement_id() {
     let (mut emu, _) = emulator();
     upload_rgb(&mut emu, 7);
     emu.feed("\x1b[38;5;7;58;5;3m\u{10EEEE}\u{0305}\u{0305}".as_bytes());
-    let mut bridge = ImageBridge::new();
+    let mut bridge = ImageBridge::direct();
     bridge.sync(0, &mut emu, &mut Vec::new()).unwrap();
     let area = Rect::new(0, 0, 20, 4);
     let mut buf = Buffer::empty(area);
     emu.render(area, &mut buf, |id| bridge.remap(0, id)).unwrap();
     assert_eq!(buf[(0, 0)].underline_color, Color::Reset);
+}
+
+#[test]
+fn local_terminals_get_pixels_through_shared_memory() {
+    let dir = std::env::temp_dir().join(format!("clawsh-bridge-shm-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let (mut emu, _) = emulator();
+    upload_rgb(&mut emu, 7);
+    let mut bridge = ImageBridge::with_shm(Some(crate::shm::ShmWriter::in_dir(dir.clone())));
+    let mut out = Vec::new();
+    bridge.sync(0, &mut emu, &mut out).unwrap();
+    let out = text(&out);
+
+    // A short command naming the object instead of the pixels themselves.
+    let name = format!("/clawsh-{}-0", std::process::id());
+    let expected = format!("a=t,q=2,i={FIRST_HOST_ID},f=24,s=2,v=1,t=s,S=6;{}", STANDARD.encode(&name));
+    assert!(out.contains(&expected), "{out:?}");
+    assert!(!out.contains("/wAAAAD/"), "no base64 pixels");
+    assert_eq!(std::fs::read(dir.join(&name[1..])).unwrap(), [255, 0, 0, 0, 0, 255]);
+
+    bridge.clear(&mut Vec::new());
+    assert!(!dir.join(&name[1..]).exists(), "cleaned up on exit");
+    std::fs::remove_dir_all(dir).unwrap();
 }

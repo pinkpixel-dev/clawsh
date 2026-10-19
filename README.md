@@ -94,7 +94,11 @@ Claw$h reads your Claude Code login from `~/.claude/.credentials.json` (or `$CLA
 
 Usage only shows when Claw$h is running Claude, so it stays out of the way with `CLAWSH_PROGRAM`.
 
-You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar.
+### Copying from Claude
+
+When Claude copies something (it uses the OSC 52 escape sequence), Claw$h passes it on to kitty or Ghostty, so it lands on your real clipboard just like it would outside Claw$h. Reading the clipboard isn't passed through, so nothing running in a tab can read what you've copied.
+
+You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar. When there are more workspaces than fit, the sidebar follows whichever tab you're on, and the mouse wheel scrolls it.
 
 The folder picker lists the folder you launched from plus its sibling folders. Type to fuzzy filter, or type a full path (starting with `/` or `~`) to open any folder. If you keep projects somewhere else too, add those parent folders to `CLAWSH_PROJECTS`, separated by colons:
 
@@ -108,6 +112,14 @@ To try it with something other than Claude, set `CLAWSH_PROGRAM`:
 
 ```bash
 CLAWSH_PROGRAM=bash ./target/release/clawsh
+```
+
+## Troubleshooting
+
+**Images from Claude mods don't show up.** Claw$h hands image pixels to your terminal through shared memory (`/dev/shm`), which is quick and keeps animated mods cheap. It switches to plain base64 on its own over SSH. If your terminal still doesn't show images, try forcing base64:
+
+```bash
+CLAWSH_IMAGES=direct ./target/release/clawsh
 ```
 
 ## License

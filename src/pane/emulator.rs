@@ -1,13 +1,16 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::rc::Rc;
 
 use anyhow::Result;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use libghostty_vt::kitty::graphics::{self as kitty, ImageFormat, PlacementIterator};
 use libghostty_vt::render::{CellIterator, CursorVisualStyle, RenderState, RowIterator};
 use libghostty_vt::screen::CellWide;
 use libghostty_vt::style::{RgbColor, StyleColor, Underline};
 use libghostty_vt::terminal::{
+    ClipboardLocation,
     ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType, Options,
     PrimaryDeviceAttributes, SecondaryDeviceAttributes, SizeReportSize,
 };
@@ -67,6 +70,8 @@ pub struct Emulator {
     cells: CellIterator<'static>,
     placements: PlacementIterator<'static>,
     size: Rc<Cell<SizeReportSize>>,
+    /// Bytes for the host terminal itself (clipboard writes), sent by the app.
+    host_out: Rc<RefCell<Vec<u8>>>,
     text: String,
 }
 
@@ -123,6 +128,30 @@ impl Emulator {
         })?
         .on_xtversion(|_t| Some(XTVERSION))?;
 
+        // OSC 52 clipboard writes (Claude's copy) go on to the host terminal,
+        // which owns the real clipboard. Reads aren't supported on purpose,
+        // so nothing in a pane can read your clipboard through Claw$h.
+        let host_out = Rc::new(RefCell::new(Vec::new()));
+        term.on_clipboard_write({
+            let host_out = Rc::clone(&host_out);
+            move |_t, write| {
+                let target = match write.location() {
+                    ClipboardLocation::Primary => 'p',
+                    ClipboardLocation::Selection => 's',
+                    _ => 'c',
+                };
+                let mut contents = write.contents();
+                let text = contents
+                    .clone()
+                    .find(|c| c.mime.starts_with("text/plain"))
+                    .or_else(|| contents.next())
+                    .map_or("", |c| c.data);
+                let osc = format!("\x1b]52;{target};{}\x1b\\", STANDARD.encode(text));
+                host_out.borrow_mut().extend_from_slice(osc.as_bytes());
+                Ok(())
+            }
+        })?;
+
         Ok(Self {
             term,
             render: RenderState::new()?,
@@ -130,6 +159,7 @@ impl Emulator {
             cells: CellIterator::new()?,
             placements: PlacementIterator::new()?,
             size,
+            host_out,
             text: String::with_capacity(16),
         })
     }
@@ -150,6 +180,11 @@ impl Emulator {
 
     pub fn terminal_mut(&mut self) -> &mut Terminal<'static, 'static> {
         &mut self.term
+    }
+
+    /// Takes whatever this pane wants sent to the host terminal itself.
+    pub fn take_host_output(&mut self) -> Vec<u8> {
+        std::mem::take(&mut *self.host_out.borrow_mut())
     }
 
     pub fn title(&self) -> Option<String> {
@@ -406,6 +441,21 @@ mod tests {
         emu.render(area, &mut buf, |_| None).unwrap();
         assert_eq!(buf[(1, 0)].symbol(), "漢");
         assert_eq!(buf[(3, 0)].symbol(), "b");
+    }
+
+    #[test]
+    fn clipboard_writes_go_to_the_host() {
+        let (mut emu, replies) = emulator(20, 2);
+        // What Claude sends to copy "hello" (ST and BEL terminators).
+        emu.feed(b"\x1b]52;c;aGVsbG8=\x1b\\");
+        assert_eq!(emu.take_host_output(), b"\x1b]52;c;aGVsbG8=\x1b\\");
+        emu.feed(b"\x1b]52;p;aGk=\x07");
+        assert_eq!(emu.take_host_output(), b"\x1b]52;p;aGk=\x1b\\");
+        assert!(emu.take_host_output().is_empty(), "taken once");
+        // A read request gets no answer, so the clipboard stays private.
+        emu.feed(b"\x1b]52;c;?\x1b\\");
+        assert!(replies.lock().unwrap().is_empty());
+        assert!(emu.take_host_output().is_empty());
     }
 
     #[test]

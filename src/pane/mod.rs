@@ -68,6 +68,11 @@ impl Pane {
         self.emu.feed(bytes);
     }
 
+    /// Bytes this pane wants sent to the host terminal (clipboard writes).
+    pub fn take_host_output(&mut self) -> Vec<u8> {
+        self.emu.take_host_output()
+    }
+
     pub fn title(&self) -> Option<String> {
         self.emu.title()
     }

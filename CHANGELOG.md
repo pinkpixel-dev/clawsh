@@ -14,6 +14,7 @@
 - PNG images sent with the kitty protocol are decoded
 - Images Claw$h uploaded are removed from the host on exit
 - Animated images (like the Clawd dashboard tile) no longer flash between frames
+- Pixels go to the terminal through shared memory instead of base64 when the terminal is local, which cuts an animated mod from hundreds of KB per second to a few short commands; SSH and `CLAWSH_IMAGES=direct` still use base64
 
 ### 🗂️ Workspaces and tabs
 - Workspaces are folders, each with its own Claude tabs
@@ -40,10 +41,14 @@
 - Saved to `~/.local/state/clawsh/session.json` whenever something changes
 - `clawsh --fresh` starts clean once
 
+### 📋 Clipboard
+- Copying from Claude (OSC 52) now reaches your real clipboard; clipboard reads stay blocked
+
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`
 - Footer bar with the current workspace, tab, and key hints for the active mode
 - The sidebar hides itself on narrow terminals
+- The sidebar scrolls when it's full, follows the active tab, and scrolls with the mouse wheel
 
 ### 🧹 Maintenance
 - `scripts/cargo.sh` builds with a local Zig 0.15 toolchain, which Ghostty requires
