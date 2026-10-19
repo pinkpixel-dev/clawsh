@@ -11,7 +11,7 @@ use libghostty_vt::screen::CellWide;
 use libghostty_vt::style::{RgbColor, StyleColor, Underline};
 use libghostty_vt::terminal::{
     ClipboardLocation,
-    ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType, Options,
+    ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType, Mode, Options,
     PrimaryDeviceAttributes, SecondaryDeviceAttributes, SizeReportSize,
 };
 use libghostty_vt::Terminal;
@@ -73,6 +73,10 @@ pub struct Emulator {
     size: Rc<Cell<SizeReportSize>>,
     /// Bytes for the host terminal itself (clipboard writes), sent by the app.
     host_out: Rc<RefCell<Vec<u8>>>,
+    /// The host's colors, which can change while running.
+    colors: Rc<Cell<HostColors>>,
+    /// For unprompted messages to the program, like theme change notices.
+    writer: SharedWriter,
     text: String,
 }
 
@@ -109,6 +113,8 @@ impl Emulator {
             .set_default_bg_color(colors.bg)?;
 
         let size = Rc::new(Cell::new(size_report(cols, rows, cell)));
+        let host_colors = Rc::new(Cell::new(colors));
+        let pty_writer = writer.clone();
 
         term.on_pty_write(move |_t, data| {
             if let Ok(mut w) = writer.lock() {
@@ -139,7 +145,10 @@ impl Emulator {
             })
         })?
         .on_xtversion(|_t| Some(XTVERSION))?
-        .on_color_scheme(move |_t| colors.scheme())?;
+        .on_color_scheme({
+            let colors = Rc::clone(&host_colors);
+            move |_t| colors.get().scheme()
+        })?;
 
         // OSC 52 clipboard writes (Claude's copy) go on to the host terminal,
         // which owns the real clipboard. Reads aren't supported on purpose,
@@ -173,6 +182,8 @@ impl Emulator {
             placements: PlacementIterator::new()?,
             size,
             host_out,
+            colors: host_colors,
+            writer: pty_writer,
             text: String::with_capacity(16),
         })
     }
@@ -193,6 +204,28 @@ impl Emulator {
 
     pub fn terminal_mut(&mut self) -> &mut Terminal<'static, 'static> {
         &mut self.term
+    }
+
+    /// The host terminal's colors changed: they become the new defaults, and a
+    /// program that asked for theme notices (mode 2031, like Claude) hears
+    /// about a light/dark flip.
+    pub fn set_host_colors(&mut self, colors: HostColors) -> Result<()> {
+        let old = self.colors.replace(colors);
+        self.term
+            .set_default_fg_color(colors.fg)?
+            .set_default_bg_color(colors.bg)?;
+        if let Some(scheme) = colors.scheme()
+            && old.scheme() != Some(scheme)
+            && self.term.mode(Mode::COLOR_SCHEME_REPORT)?
+        {
+            let mut buf = [0u8; 16];
+            let n = scheme.encode_report(&mut buf)?;
+            if let Ok(mut w) = self.writer.lock() {
+                let _ = w.write_all(&buf[..n]);
+                let _ = w.flush();
+            }
+        }
+        Ok(())
     }
 
     /// Takes whatever this pane wants sent to the host terminal itself.

@@ -101,7 +101,7 @@ Usage only shows when Claw$h is running Claude, so it stays out of the way with 
 
 When Claw$h starts, it asks your terminal for its real text and background colors and passes them on to every tab. So when Claude checks whether your terminal is light or dark to pick its theme, it gets the right answer.
 
-Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a warm light palette on light terminals, the charcoal one on dark ones. If your terminal doesn't report its colors, Claw$h stays dark. To pick one yourself:
+Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a warm light palette on light terminals, the charcoal one on dark ones. If you switch your terminal's theme while Claw$h is running, it notices and switches its own palette, and every tab gets the new colors. That needs a terminal that announces theme changes (mode 2031); Ghostty does, and I believe recent kitty does as well. Claude itself picks its theme when it starts (as of Claude Code 2.1.303 it doesn't listen for theme changes), so a Claude that's already running keeps its theme until you restart it or change it with `/theme`. New tabs get the right one. If your terminal doesn't report its colors at all, Claw$h stays dark. To pin one yourself:
 
 ```bash
 CLAWSH_THEME=light ./target/release/clawsh
@@ -138,5 +138,7 @@ CLAWSH_IMAGES=direct ./target/release/clawsh
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
+
+`src/input/parse.rs` is adapted from [crossterm](https://github.com/crossterm-rs/crossterm)'s input parser and stays under its MIT license, which is included as `src/input/CROSSTERM-LICENSE`.
 
 Made with 💖 by [Pink Pixel](https://pinkpixel.dev)

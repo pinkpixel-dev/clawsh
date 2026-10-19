@@ -64,6 +64,9 @@ impl HostGuard {
             EnableBracketedPaste,
             EnableFocusChange
         )?;
+        // Mode 2031: the terminal tells us when it switches light/dark.
+        out.write_all(b"\x1b[?2031h")?;
+        out.flush()?;
 
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
@@ -92,6 +95,7 @@ fn restore(kitty_keys: bool) {
     if kitty_keys {
         let _ = execute!(out, PopKeyboardEnhancementFlags);
     }
+    let _ = out.write_all(b"\x1b[?2031l");
     let _ = out.flush();
 }
 

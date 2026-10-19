@@ -48,6 +48,7 @@
 ### 🌗 Light and dark
 - Claw$h reads the terminal's real colors at startup and passes them to every tab, so Claude picks the right light or dark theme
 - Claw$h's own chrome has a light palette now, chosen automatically on light terminals or with `CLAWSH_THEME=light`
+- Switching the terminal between light and dark while running is picked up: Claw$h changes palette and passes the new colors to every tab, and programs that listen for theme notices get one (terminals that support mode 2031)
 
 ### 📋 Clipboard
 - Copying from Claude (OSC 52) now reaches your real clipboard; clipboard reads stay blocked
@@ -59,4 +60,5 @@
 - The sidebar scrolls when it's full, follows the active tab, and scrolls with the mouse wheel
 
 ### 🧹 Maintenance
+- Input is read by Claw$h itself, through a copy of crossterm's parser that also understands terminal replies, so theme notices and color replies can never turn into keystrokes
 - `scripts/cargo.sh` builds with a local Zig 0.15 toolchain, which Ghostty requires

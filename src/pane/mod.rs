@@ -70,6 +70,10 @@ impl Pane {
         self.emu.feed(bytes);
     }
 
+    pub fn set_host_colors(&mut self, colors: HostColors) -> Result<()> {
+        self.emu.set_host_colors(colors)
+    }
+
     /// Bytes this pane wants sent to the host terminal (clipboard writes).
     pub fn take_host_output(&mut self) -> Vec<u8> {
         self.emu.take_host_output()

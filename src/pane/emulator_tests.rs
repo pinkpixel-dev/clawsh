@@ -93,3 +93,30 @@ fn answers_size_queries_through_the_pty() {
     emu.feed(b"\x1b[18t");
     assert_eq!(replies.lock().unwrap().as_slice(), b"\x1b[8;24;80t");
 }
+
+#[test]
+fn theme_flips_reach_programs_that_ask() {
+    let (mut emu, replies) = emulator(20, 2);
+    let dark = HostColors { fg: None, bg: Some(RgbColor { r: 0x1c, g: 0x1d, b: 0x21 }) };
+    let light = HostColors { fg: None, bg: Some(RgbColor { r: 0xfa, g: 0xf8, b: 0xf5 }) };
+
+    // Nobody asked yet: no notice.
+    emu.set_host_colors(light).unwrap();
+    assert!(replies.lock().unwrap().is_empty());
+
+    // Claude turns on mode 2031, then the terminal flips to dark and back.
+    emu.feed(b"\x1b[?2031h");
+    emu.set_host_colors(dark).unwrap();
+    emu.set_host_colors(dark).unwrap();
+    emu.set_host_colors(light).unwrap();
+    assert_eq!(
+        replies.lock().unwrap().as_slice(),
+        b"\x1b[?997;1n\x1b[?997;2n",
+        "one notice per actual flip"
+    );
+
+    // And a direct question gets the new background.
+    replies.lock().unwrap().clear();
+    emu.feed(b"\x1b]11;?\x1b\\");
+    assert!(String::from_utf8_lossy(&replies.lock().unwrap()).contains("fafa/f8f8/f5f5"));
+}

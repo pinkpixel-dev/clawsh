@@ -11,7 +11,7 @@ use crossterm::event::Event;
 use ratatui::DefaultTerminal;
 use ratatui::layout::Rect;
 
-use crate::event::{self, AppEvent};
+use crate::event::AppEvent;
 use crate::graphics::ImageBridge;
 use crate::host::{self, CellPx};
 use crate::host_colors::HostColors;
@@ -20,6 +20,7 @@ use crate::notify;
 use crate::persist::{self, Saved};
 use crate::picker::Picker;
 use crate::status::{self, Status, StatusServer};
+use crate::theme;
 use crate::ui::{self, Hits, TabView, View, WorkspaceView};
 use crate::usage::{Report, UsagePoller};
 use crate::workspace::Workspaces;
@@ -82,7 +83,7 @@ struct App {
 
 pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Result<()> {
     let (tx, rx) = mpsc::channel();
-    event::spawn_input_reader(tx.clone());
+    crate::input::spawn_reader(tx.clone());
 
     let show_sidebar = true;
     let areas = ui::layout(term.size()?.into(), show_sidebar);
@@ -433,6 +434,24 @@ impl App {
                 }
             }
             AppEvent::Usage(report) => self.usage = Some(report),
+            AppEvent::HostScheme(scheme) => {
+                theme::follow(scheme);
+                // Ask for the exact new colors; the replies come back as
+                // HostColor events and get passed on to every pane.
+                write_host(b"\x1b]10;?\x1b\\\x1b]11;?\x1b\\")?;
+            }
+            AppEvent::HostColor(code, rgb) => {
+                match code {
+                    10 => self.colors.fg = Some(rgb),
+                    _ => self.colors.bg = Some(rgb),
+                }
+                if let Some(scheme) = self.colors.scheme() {
+                    theme::follow(scheme);
+                }
+                for pane in self.spaces.tabs_mut() {
+                    pane.set_host_colors(self.colors)?;
+                }
+            }
             AppEvent::Input(input) => match input {
                 Event::Key(k) => self.key(k)?,
                 Event::Mouse(m) => self.mouse(m)?,
