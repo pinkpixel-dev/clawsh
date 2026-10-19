@@ -156,10 +156,10 @@ fn status_icon(status: Status, frame: usize) -> Span<'static> {
     let bold = Modifier::BOLD;
     match status {
         Status::Idle => Span::styled("○", theme::faint()),
-        Status::Working => Span::styled(SPINNER[frame % SPINNER.len()], Style::new().fg(theme::ACCENT)),
-        Status::NeedsInput => Span::styled("?", Style::new().fg(theme::WARN).add_modifier(bold)),
-        Status::Done => Span::styled("●", Style::new().fg(theme::OK)),
-        Status::Failed => Span::styled("✗", Style::new().fg(theme::DANGER).add_modifier(bold)),
+        Status::Working => Span::styled(SPINNER[frame % SPINNER.len()], Style::new().fg(theme::palette().accent)),
+        Status::NeedsInput => Span::styled("?", Style::new().fg(theme::palette().warn).add_modifier(bold)),
+        Status::Done => Span::styled("●", Style::new().fg(theme::palette().ok)),
+        Status::Failed => Span::styled("✗", Style::new().fg(theme::palette().danger).add_modifier(bold)),
     }
 }
 

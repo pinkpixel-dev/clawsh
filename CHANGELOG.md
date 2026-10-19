@@ -47,6 +47,7 @@
 
 ### 🌗 Light and dark
 - Claw$h reads the terminal's real colors at startup and passes them to every tab, so Claude picks the right light or dark theme
+- Claw$h's own chrome has a light palette now, chosen automatically on light terminals or with `CLAWSH_THEME=light`
 
 ### 📋 Clipboard
 - Copying from Claude (OSC 52) now reaches your real clipboard; clipboard reads stay blocked

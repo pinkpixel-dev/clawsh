@@ -99,7 +99,13 @@ Usage only shows when Claw$h is running Claude, so it stays out of the way with 
 
 ### Light and dark terminals
 
-When Claw$h starts, it asks your terminal for its real text and background colors and passes them on to every tab. So when Claude checks whether your terminal is light or dark to pick its theme, it gets the right answer. Claw$h's own sidebar and bars stay dark for now.
+When Claw$h starts, it asks your terminal for its real text and background colors and passes them on to every tab. So when Claude checks whether your terminal is light or dark to pick its theme, it gets the right answer.
+
+Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a warm light palette on light terminals, the charcoal one on dark ones. If your terminal doesn't report its colors, Claw$h stays dark. To pick one yourself:
+
+```bash
+CLAWSH_THEME=light ./target/release/clawsh
+```
 
 ### Copying from Claude
 

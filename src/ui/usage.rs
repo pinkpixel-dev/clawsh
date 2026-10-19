@@ -53,9 +53,9 @@ fn window_line(w: &Window, now: DateTime<Utc>) -> Line<'static> {
 /// Green while there's room, yellow under 25% left, red under 10%.
 fn level_color(left: u8) -> Color {
     match left {
-        0..10 => theme::DANGER,
-        10..25 => theme::WARN,
-        _ => theme::OK,
+        0..10 => theme::palette().danger,
+        10..25 => theme::palette().warn,
+        _ => theme::palette().ok,
     }
 }
 
@@ -83,8 +83,9 @@ mod tests {
 
     #[test]
     fn color_tracks_how_much_is_left() {
-        assert_eq!(level_color(80), theme::OK);
-        assert_eq!(level_color(20), theme::WARN);
-        assert_eq!(level_color(5), theme::DANGER);
+        let p = theme::palette();
+        assert_eq!(level_color(80), p.ok);
+        assert_eq!(level_color(20), p.warn);
+        assert_eq!(level_color(5), p.danger);
     }
 }

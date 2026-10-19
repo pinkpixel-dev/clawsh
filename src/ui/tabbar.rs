@@ -19,7 +19,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) {
     for (ti, tab) in ws.tabs.iter().enumerate() {
         let active = ti == ws.active_tab;
         let (num, text) = if active {
-            (theme::accent().bg(theme::SURFACE_ACTIVE), theme::active_row())
+            (theme::accent().bg(theme::palette().surface_active), theme::active_row())
         } else {
             (theme::faint(), theme::muted())
         };

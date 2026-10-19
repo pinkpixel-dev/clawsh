@@ -1,49 +1,122 @@
-//! Color tokens for clawsh's own chrome. Pane contents keep the
-//! colors the program asked for.
+//! Color tokens for Claw$h's own chrome. Pane contents keep the colors the
+//! program asked for.
+//!
+//! There's a dark and a light palette. Which one is used is decided once at
+//! startup from the terminal's own background, or `CLAWSH_THEME`.
 
+use std::sync::OnceLock;
+
+use libghostty_vt::terminal::ColorScheme;
 use ratatui::style::{Color, Modifier, Style};
 
-pub const SURFACE: Color = Color::Rgb(0x1c, 0x1d, 0x21);
-/// The active workspace or tab: a faint pink tint over the surface.
-pub const SURFACE_ACTIVE: Color = Color::Rgb(0x34, 0x24, 0x2c);
-pub const BORDER: Color = Color::Rgb(0x33, 0x35, 0x3c);
-pub const TEXT: Color = Color::Rgb(0xec, 0xec, 0xef);
-pub const MUTED: Color = Color::Rgb(0x8a, 0x8c, 0x96);
-pub const FAINT: Color = Color::Rgb(0x5c, 0x5e, 0x67);
-pub const ACCENT: Color = Color::Rgb(0xf2, 0x6d, 0x9b);
-pub const OK: Color = Color::Rgb(0x6c, 0xcf, 0x8e);
-pub const WARN: Color = Color::Rgb(0xe8, 0xb4, 0x5a);
-pub const DANGER: Color = Color::Rgb(0xec, 0x6a, 0x6a);
+pub struct Palette {
+    pub surface: Color,
+    /// The active workspace or tab: a faint pink tint over the surface.
+    pub surface_active: Color,
+    pub border: Color,
+    pub text: Color,
+    pub muted: Color,
+    pub faint: Color,
+    pub accent: Color,
+    pub ok: Color,
+    pub warn: Color,
+    pub danger: Color,
+}
+
+pub static DARK: Palette = Palette {
+    surface: Color::Rgb(0x1c, 0x1d, 0x21),
+    surface_active: Color::Rgb(0x34, 0x24, 0x2c),
+    border: Color::Rgb(0x33, 0x35, 0x3c),
+    text: Color::Rgb(0xec, 0xec, 0xef),
+    muted: Color::Rgb(0x8a, 0x8c, 0x96),
+    faint: Color::Rgb(0x5c, 0x5e, 0x67),
+    accent: Color::Rgb(0xf2, 0x6d, 0x9b),
+    ok: Color::Rgb(0x6c, 0xcf, 0x8e),
+    warn: Color::Rgb(0xe8, 0xb4, 0x5a),
+    danger: Color::Rgb(0xec, 0x6a, 0x6a),
+};
+
+/// Warm off-white, with the accent and status colors darkened so anything
+/// used as text clears 4.5:1 contrast on both the panel and the active row.
+pub static LIGHT: Palette = Palette {
+    surface: Color::Rgb(0xf2, 0xf0, 0xec),
+    surface_active: Color::Rgb(0xf6, 0xdf, 0xe7),
+    border: Color::Rgb(0xd8, 0xd4, 0xce),
+    text: Color::Rgb(0x23, 0x24, 0x2a),
+    muted: Color::Rgb(0x62, 0x64, 0x6c),
+    faint: Color::Rgb(0x8a, 0x8c, 0x94),
+    accent: Color::Rgb(0xb0, 0x25, 0x5d),
+    ok: Color::Rgb(0x17, 0x76, 0x3f),
+    warn: Color::Rgb(0x8c, 0x54, 0x00),
+    danger: Color::Rgb(0xb5, 0x2a, 0x25),
+};
+
+static PALETTE: OnceLock<&'static Palette> = OnceLock::new();
+
+/// Picks the palette for this run. `CLAWSH_THEME=light|dark` wins; then the
+/// terminal's own light or dark background; dark when neither says.
+pub fn choose(forced: Option<&str>, scheme: Option<ColorScheme>) -> &'static Palette {
+    match (forced, scheme) {
+        (Some("light"), _) => &LIGHT,
+        (Some("dark"), _) => &DARK,
+        (_, Some(ColorScheme::Light)) => &LIGHT,
+        _ => &DARK,
+    }
+}
+
+/// Sets the palette once, at startup.
+pub fn init(palette: &'static Palette) {
+    let _ = PALETTE.set(palette);
+}
+
+pub fn palette() -> &'static Palette {
+    PALETTE.get().copied().unwrap_or(&DARK)
+}
 
 pub fn bar() -> Style {
-    Style::new().bg(SURFACE).fg(MUTED)
+    Style::new().bg(palette().surface).fg(palette().muted)
 }
 
 pub fn panel() -> Style {
-    Style::new().bg(SURFACE).fg(TEXT)
+    Style::new().bg(palette().surface).fg(palette().text)
 }
 
 pub fn border() -> Style {
-    Style::new().fg(BORDER)
+    Style::new().fg(palette().border)
 }
 
 pub fn active_row() -> Style {
-    Style::new().bg(SURFACE_ACTIVE).fg(TEXT)
+    Style::new().bg(palette().surface_active).fg(palette().text)
 }
 
 pub fn muted() -> Style {
-    Style::new().fg(MUTED)
+    Style::new().fg(palette().muted)
 }
 
 pub fn faint() -> Style {
-    Style::new().fg(FAINT)
+    Style::new().fg(palette().faint)
 }
 
 pub fn key_hint() -> Style {
-    Style::new().fg(TEXT).add_modifier(Modifier::BOLD)
+    Style::new().fg(palette().text).add_modifier(Modifier::BOLD)
 }
 
 pub fn accent() -> Style {
-    Style::new().fg(ACCENT).add_modifier(Modifier::BOLD)
+    Style::new().fg(palette().accent).add_modifier(Modifier::BOLD)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn follows_the_terminal_unless_told_otherwise() {
+        let is = |p: &Palette, q: &Palette| std::ptr::eq(p, q);
+        assert!(is(choose(None, Some(ColorScheme::Light)), &LIGHT));
+        assert!(is(choose(None, Some(ColorScheme::Dark)), &DARK));
+        assert!(is(choose(None, None), &DARK), "unknown terminals stay dark");
+        assert!(is(choose(Some("dark"), Some(ColorScheme::Light)), &DARK));
+        assert!(is(choose(Some("light"), None), &LIGHT));
+        assert!(is(choose(Some("purple"), Some(ColorScheme::Light)), &LIGHT), "unknown values are ignored");
+    }
+}

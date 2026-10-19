@@ -38,6 +38,8 @@ fn main() -> Result<()> {
     let mut term = ratatui::init();
     // Ask for the terminal's colors before anything else reads stdin.
     let colors = host_colors::query();
+    let forced = std::env::var("CLAWSH_THEME").ok();
+    theme::init(theme::choose(forced.as_deref(), colors.scheme()));
     let result = host::HostGuard::enter().and_then(|_guard| app::run(&mut term, launch, colors));
     ratatui::restore();
     result
