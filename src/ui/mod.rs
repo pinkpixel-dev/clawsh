@@ -112,6 +112,7 @@ pub enum Mode<'a> {
     Normal,
     Prefix,
     Picker(&'a Picker),
+    Copy,
 }
 
 pub struct View<'a> {

@@ -52,6 +52,8 @@
 
 ### 📋 Clipboard
 - Copying from Claude (OSC 52) now reaches your real clipboard; clipboard reads stay blocked
+- Copy mode (`ctrl+b [`): move a cursor through the screen and scrollback, select with `v`, copy with `y`
+- Drag to select (copied on release) in tabs whose program doesn't use the mouse
 
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`

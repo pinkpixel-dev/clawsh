@@ -38,6 +38,8 @@ enum Mode {
     /// `ctrl+b` was pressed; the next key is a command.
     Prefix,
     Picker(Picker),
+    /// The active pane is in copy mode; keys move its cursor.
+    Copy,
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -193,6 +195,7 @@ fn build_view<'m>(
         mode: match mode {
             Mode::Normal => ui::Mode::Normal,
             Mode::Prefix => ui::Mode::Prefix,
+            Mode::Copy => ui::Mode::Copy,
             Mode::Picker(p) => ui::Mode::Picker(p),
         },
     }
@@ -279,6 +282,18 @@ impl App {
         write_host(&out)
     }
 
+    /// Ends copy mode on the active pane, for when something else (a click,
+    /// a tab switch) takes over.
+    fn leave_copy_mode(&mut self) -> Result<()> {
+        if matches!(self.mode, Mode::Copy) {
+            self.mode = Mode::Normal;
+            if let Some(pane) = self.spaces.active_tab_mut() {
+                pane.exit_copy_mode()?;
+            }
+        }
+        Ok(())
+    }
+
     fn active_id(&self) -> Option<usize> {
         self.spaces.active_tab().map(Pane::id)
     }
@@ -286,6 +301,7 @@ impl App {
     /// Runs a change to the workspaces and moves focus reporting along with
     /// the active pane.
     fn switch(&mut self, change: impl FnOnce(&mut Workspaces<Pane>)) -> Result<()> {
+        self.leave_copy_mode()?;
         let before = self.active_id();
         change(&mut self.spaces);
         let after = self.active_id();

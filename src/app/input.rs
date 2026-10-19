@@ -25,6 +25,7 @@ pub(super) enum Action {
     CycleWorkspace(isize),
     ToggleSidebar,
     ToggleNotifications,
+    CopyMode,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -45,6 +46,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('k') | KeyCode::Up => Action::CycleWorkspace(-1),
         KeyCode::Char('s') => Action::ToggleSidebar,
         KeyCode::Char('m') => Action::ToggleNotifications,
+        KeyCode::Char('[') => Action::CopyMode,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
@@ -83,6 +85,16 @@ impl App {
                     None => Ok(()),
                 }
             }
+            Mode::Copy => {
+                let still_copying = match self.spaces.active_tab_mut() {
+                    Some(pane) => pane.copy_key(&k)?,
+                    None => false,
+                };
+                if !still_copying {
+                    self.mode = Mode::Normal;
+                }
+                Ok(())
+            }
             Mode::Picker(picker) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -119,6 +131,12 @@ impl App {
             Action::CycleWorkspace(d) => self.switch(|s| s.cycle_workspace(d))?,
             Action::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             Action::ToggleNotifications => self.notifications = !self.notifications,
+            Action::CopyMode => {
+                if let Some(pane) = self.spaces.active_tab_mut() {
+                    pane.enter_copy_mode()?;
+                    self.mode = Mode::Copy;
+                }
+            }
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
                 if let Some(pane) = self.spaces.active_tab_mut() {
@@ -180,6 +198,7 @@ impl App {
 
         if let Some(click) = hit {
             if left_click {
+                self.leave_copy_mode()?;
                 self.mode = Mode::Normal;
                 self.click(click)?;
             }
@@ -239,6 +258,7 @@ mod tests {
             prefix_action(&KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL)),
             Some(Action::SendPrefix)
         );
+        assert_eq!(prefix_action(&key(KeyCode::Char('['))), Some(Action::CopyMode));
         assert_eq!(prefix_action(&key(KeyCode::Esc)), None);
         assert_eq!(prefix_action(&key(KeyCode::Char('0'))), None);
     }

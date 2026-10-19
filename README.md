@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icon.png" alt="Claw$h icon" width="300" height="300">
+</p>
+
 # Claw$h
 
 Claw$h is a terminal workspace for Claude Code. Each tab runs a real `claude` process, and Claw$h wraps it in a ratatui interface with room for workspaces, tabs, and status, kind of like herdr but built around Claude.
@@ -67,6 +71,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `j` / `k` or `↓` / `↑` | Next / previous workspace |
 | `s` | Hide or show the sidebar |
 | `m` | Turn desktop notifications off or back on |
+| `[` | Copy mode: select text with the keyboard, including the scrollback |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
@@ -110,6 +115,20 @@ CLAWSH_THEME=light ./target/release/clawsh
 ### Copying from Claude
 
 When Claude copies something (it uses the OSC 52 escape sequence), Claw$h passes it on to kitty or Ghostty, so it lands on your real clipboard just like it would outside Claw$h. Reading the clipboard isn't passed through, so nothing running in a tab can read what you've copied.
+
+To copy text yourself, including stuff that's scrolled off the top, press `ctrl+b` then `[` for copy mode. The tab freezes and a pink cursor shows up where the program's cursor was:
+
+| Key | What it does |
+|---|---|
+| arrows or `h` `j` `k` `l` | Move |
+| `0` / `$` | Start / end of the line |
+| `PgUp` / `PgDn`, `ctrl+u` / `ctrl+d` | A page / half a page |
+| `g` / `G` | Top of the scrollback / the bottom |
+| `v` or space | Start (or drop) a selection |
+| `y` or `Enter` | Copy the selection and exit; with nothing selected, copies the line the cursor is on |
+| `q` or `Esc` | Exit without copying |
+
+In tabs where the program doesn't use the mouse itself (a plain shell, for example), you can also just drag across text. It's copied when you let go. Claude does its own mouse handling, so inside Claude, use its selection or copy mode. Holding `shift` while dragging still works too, but that's your terminal's own selection, so it covers the whole Claw$h window, sidebar included.
 
 You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar. When there are more workspaces than fit, the sidebar follows whichever tab you're on, and the mouse wheel scrolls it.
 

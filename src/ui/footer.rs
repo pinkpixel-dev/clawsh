@@ -25,12 +25,21 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
             ("x", "close"),
             ("n/p", "tabs"),
             ("j/k", "spaces"),
+            ("[", "copy"),
             ("s", "sidebar"),
             ("m", notify),
             ("q", "quit"),
             ("esc", "cancel"),
         ],
         Mode::Picker(_) => &[("enter", "open"), ("↑↓", "move"), ("esc", "cancel")],
+        Mode::Copy => &[
+            ("COPY", ""),
+            ("hjkl", "move"),
+            ("g/G", "top/end"),
+            ("v", "select"),
+            ("y", "copy"),
+            ("q", "exit"),
+        ],
     };
     // Leading gap so a long title never runs into the hints.
     let mut right = vec![Span::raw("  ")];

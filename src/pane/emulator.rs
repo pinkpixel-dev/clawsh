@@ -65,14 +65,14 @@ pub struct CursorState {
 
 /// A libghostty-vt terminal plus the reusable render iterators it needs.
 pub struct Emulator {
-    term: Terminal<'static, 'static>,
+    pub(super) term: Terminal<'static, 'static>,
     render: RenderState<'static>,
     rows: RowIterator<'static>,
     cells: CellIterator<'static>,
     placements: PlacementIterator<'static>,
     size: Rc<Cell<SizeReportSize>>,
     /// Bytes for the host terminal itself (clipboard writes), sent by the app.
-    host_out: Rc<RefCell<Vec<u8>>>,
+    pub(super) host_out: Rc<RefCell<Vec<u8>>>,
     /// The host's colors, which can change while running.
     colors: Rc<Cell<HostColors>>,
     /// For unprompted messages to the program, like theme change notices.
@@ -168,8 +168,7 @@ impl Emulator {
                     .find(|c| c.mime.starts_with("text/plain"))
                     .or_else(|| contents.next())
                     .map_or("", |c| c.data);
-                let osc = format!("\x1b]52;{target};{}\x1b\\", STANDARD.encode(text));
-                host_out.borrow_mut().extend_from_slice(osc.as_bytes());
+                host_out.borrow_mut().extend_from_slice(&osc52(target, text));
                 Ok(())
             }
         })?;
@@ -376,6 +375,12 @@ impl Emulator {
 
         Ok(cursor.filter(|c| c.position.x < area.width && c.position.y < area.height))
     }
+}
+
+/// An OSC 52 clipboard write for the host terminal (`c` clipboard, `p`
+/// primary, `s` selection).
+pub(super) fn osc52(target: char, text: &str) -> Vec<u8> {
+    format!("\x1b]52;{target};{}\x1b\\", STANDARD.encode(text)).into_bytes()
 }
 
 fn size_report(cols: u16, rows: u16, cell: CellPx) -> SizeReportSize {
