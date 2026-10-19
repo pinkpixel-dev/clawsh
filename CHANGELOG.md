@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - October 19, 2026
 
 ### 🖱️ Menus
 - Right-click a tab (in the sidebar or the tab bar) for New tab, Rename, and Close
