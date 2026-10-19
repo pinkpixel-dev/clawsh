@@ -153,6 +153,7 @@ impl App {
             Choice::Radar => self.open_radar(),
             Choice::Search => self.open_search(),
             Choice::Worktrees => self.open_worktree_picker(),
+            Choice::Files => self.open_file_picker(),
             Choice::NewWorktree(dir) => self.mode = Mode::NewWorktree(dir, String::new()),
             Choice::ConfirmRemoveWorktree { repo, path, force } => self.remove_worktree(&repo, &path, force),
             Choice::ToggleOrder => self.by_activity = !self.by_activity,

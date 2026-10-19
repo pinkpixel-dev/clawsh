@@ -1,5 +1,6 @@
 //! The fuzzy pickers: folders for a new workspace (with typed paths), saved
-//! workspace templates, prompt snippets, git worktrees, and the command palette.
+//! workspace templates, prompt snippets, git worktrees, files to mention, and
+//! the command palette.
 
 use std::path::{Path, PathBuf};
 
@@ -14,6 +15,8 @@ pub enum Kind {
     Snippets,
     /// The active workspace's git worktrees, plus "+ new branch".
     Worktrees,
+    /// The active workspace's files, to mention in Claude's input.
+    Files,
     /// Commands, tabs, workspaces, snippets, and templates together.
     Palette,
 }
@@ -27,6 +30,8 @@ pub enum Target {
     Template(PathBuf),
     /// Paste the snippet in this file.
     Snippet(PathBuf),
+    /// Paste an `@` mention of this path, relative to the workspace.
+    File(String),
     /// Do what this menu item does.
     Command(Choice),
     /// Switch to the tab with this pane id.
@@ -165,7 +170,9 @@ impl Picker {
 }
 
 /// Subsequence match: every query char appears in order. Prefix and
-/// consecutive hits score higher. `None` when it doesn't match.
+/// consecutive hits score higher, and so does starting a path segment, so
+/// `app` finds `src/app.rs` before `src/snapshot.rs`. `None` when it doesn't
+/// match.
 fn score(query: &str, name: &str) -> Option<i32> {
     if query.is_empty() {
         return Some(0);
@@ -178,6 +185,7 @@ fn score(query: &str, name: &str) -> Option<i32> {
         total += match last {
             None if i == 0 => 10,
             Some(prev) if i == prev + 1 => 5,
+            _ if name[..i].ends_with('/') => 8,
             _ => 1,
         };
         last = Some(i);
@@ -278,6 +286,17 @@ mod tests {
         p.query.clear();
         p.push('r');
         assert_eq!(p.choice(), Some(Target::Command(Choice::Review)));
+    }
+
+    #[test]
+    fn paths_prefer_matches_at_a_segment_start() {
+        let entry = |p: &str| Entry { name: p.into(), detail: String::new(), target: Target::File(p.into()) };
+        let mut p = Picker::new(Kind::Files, Vec::from(["src/snapshot.rs", "src/app.rs"].map(entry)));
+        for c in "app".chars() {
+            p.push(c);
+        }
+        assert_eq!(p.choice(), Some(Target::File("src/app.rs".into())));
+        assert_eq!(p.typed_dir(), None, "a typed path is only a folder in the folder picker");
     }
 
     #[test]

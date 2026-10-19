@@ -39,6 +39,7 @@ pub(super) enum Action {
     Radar,
     Search,
     Worktrees,
+    Files,
     Terminal,
     SwapFocus,
     Quit,
@@ -75,6 +76,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('v') => Action::Radar,
         KeyCode::Char('/') => Action::Search,
         KeyCode::Char('g') => Action::Worktrees,
+        KeyCode::Char('f') => Action::Files,
         KeyCode::Char('e') => Action::Terminal,
         KeyCode::Char(';') => Action::SwapFocus,
         KeyCode::Char('q') => Action::Quit,
@@ -292,6 +294,7 @@ impl App {
             Action::Radar => self.open_radar(),
             Action::Search => self.open_search(),
             Action::Worktrees => self.open_worktree_picker(),
+            Action::Files => self.open_file_picker(),
             Action::Terminal => {
                 if let Some(id) = self.active_id() {
                     self.toggle_terminal(id)?;
@@ -540,6 +543,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('/'))), Some(Action::Search));
         assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
         assert_eq!(prefix_action(&key(KeyCode::Char('g'))), Some(Action::Worktrees));
+        assert_eq!(prefix_action(&key(KeyCode::Char('f'))), Some(Action::Files));
         assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(
             prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),

@@ -28,6 +28,7 @@ pub fn draw(frame: &mut Frame, picker: &Picker, hits: &mut Hits) -> Position {
         Kind::Templates => (" Open template ", "no templates yet, save one with ctrl+b T"),
         Kind::Snippets => (" Insert snippet ", "no snippets yet, add .md files to ~/.config/clawsh/snippets"),
         Kind::Worktrees => (" Worktrees ", "nothing matches"),
+        Kind::Files => (" Insert file ", "no matching files"),
         Kind::Palette => (" Commands ", "nothing matches"),
     };
     let block = Block::bordered()

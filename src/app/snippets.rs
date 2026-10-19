@@ -1,10 +1,12 @@
-//! The snippet picker and pasting a snippet into the active tab (`ctrl+b i`).
+//! The snippet picker (`ctrl+b i`), the file picker (`ctrl+b f`), and pasting
+//! what they pick into the active tab.
 
 use std::path::Path;
 
 use anyhow::Result;
 
 use super::{App, Mode};
+use crate::files;
 use crate::picker::{Entry, Kind, Picker, Target};
 use crate::snippet;
 use crate::status::Status;
@@ -45,6 +47,29 @@ impl App {
                 return Ok(());
             }
         };
+        self.paste_to_claude(&text)
+    }
+
+    /// `ctrl+b f`: every file in the workspace, by path.
+    pub(super) fn open_file_picker(&mut self) {
+        let Some(ws) = self.spaces.current() else {
+            return;
+        };
+        let entries = files::list(&ws.path)
+            .into_iter()
+            .map(|path| Entry { name: path.clone(), detail: String::new(), target: Target::File(path) })
+            .collect();
+        self.mode = Mode::Picker(Picker::new(Kind::Files, entries));
+    }
+
+    /// Pastes an `@` mention of a file, without pressing Enter.
+    pub(super) fn insert_file(&mut self, path: &str) -> Result<()> {
+        self.paste_to_claude(&files::mention(path))
+    }
+
+    /// Pastes into the active tab's Claude (never its drawer), unless Claude
+    /// is waiting on an answer.
+    fn paste_to_claude(&mut self, text: &str) -> Result<()> {
         let Some(pane) = self.spaces.active_tab_mut() else {
             return Ok(());
         };
@@ -53,7 +78,7 @@ impl App {
             self.notice = Some("Claude is waiting on you, answer it first".into());
             return Ok(());
         }
-        pane.paste(&text)?;
+        pane.paste(text)?;
         pane.status = pane.status.seen();
         Ok(())
     }

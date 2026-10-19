@@ -116,6 +116,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `t` | Open a workspace template |
 | `T` | Save the current workspace as a template |
 | `i` | Insert a prompt snippet into the current tab |
+| `f` | Insert an `@` mention of a file in this workspace |
 | `o` | Open the menu |
 | `e` | Show or hide this tab's terminal drawer |
 | `;` | Move the keyboard between Claude and the drawer |
@@ -252,6 +253,14 @@ Each snippet is a Markdown file. The file name is the snippet's name, and the wh
 The picker lists the workspace's snippets first, then the global ones, each labeled `repo` or `global` with a preview of its first line. If both folders have a snippet with the same name, you'll see both. Blank lines at the top and the final newline are dropped, so pasting a snippet never sends it by accident. If Claude is waiting on you (a permission prompt, say), Claw$h won't paste and tells you to answer Claude first.
 
 Claude Code's own custom slash commands (`.claude/commands/`) are still the better fit for a prompt you want to run as a command. Snippets are for text you want to drop in and edit, in any tab.
+
+## Mentioning files
+
+Press `ctrl+b` then `f` to fuzzy search the workspace's files by path. Pick one and Claw$h pastes `@path/to/file ` into Claude's input, the same `@` mention you'd type yourself, without pressing enter. Do it a few times to mention several files.
+
+In a git repo the list is what git tracks plus untracked files it isn't ignoring, so build output and `.env` files stay out. Outside git it walks the folder and skips hidden folders, `node_modules`, and `target`. It stops at 20,000 files either way. Matches at the start of a folder or file name rank first, so `uiside` finds `src/ui/sidebar.rs`.
+
+Claude's own `@` autocomplete still works as usual. This is the same thing through the Claw$h picker, so it's there from the palette and works with the mouse. Like snippets, it won't paste while Claude is waiting on you.
 
 ## Git worktrees
 

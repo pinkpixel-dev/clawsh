@@ -67,6 +67,7 @@ impl App {
             Target::Folder(path) => self.open_workspace(path, &[]),
             Target::Template(path) => self.open_template(&path),
             Target::Snippet(path) => self.insert_snippet(&path),
+            Target::File(path) => self.insert_file(&path),
             Target::Command(choice) => self.run_choice(choice, self.menu_anchor()),
             Target::Tab(id) => self.select_pane(id).map(drop),
             Target::Workspace(path) => match self.spaces.list.iter().position(|ws| ws.path == path) {

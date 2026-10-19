@@ -39,6 +39,8 @@ pub enum Choice {
     Search,
     /// The worktree picker for the active workspace's repository.
     Worktrees,
+    /// The file picker, which pastes an `@` mention.
+    Files,
     /// Asks for a branch name, then adds a worktree from this folder.
     NewWorktree(PathBuf),
     /// Removes the worktree at `path`, running git from `repo`. `force`
@@ -161,6 +163,7 @@ impl Menu {
             Item::new("Open template", Choice::OpenTemplate).key("t").divider(),
             Item::new("Save template", Choice::SaveTemplate).key("T"),
             Item::new("Insert snippet", Choice::Snippet).key("i"),
+            Item::new("Insert file", Choice::Files).key("f"),
             Item::new("Review changes", Choice::Review).key("r"),
             Item::new("Radar", Choice::Radar).key("v"),
             Item::new("Search conversations", Choice::Search).key("/"),

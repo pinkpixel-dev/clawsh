@@ -55,6 +55,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
             (",", "rename"),
             ("t/T", "templates"),
             ("i", "snippet"),
+            ("f", "file"),
             ("g", "worktrees"),
             ("e", "terminal"),
             (";", "focus"),
@@ -68,6 +69,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
         Mode::Picker(p) if p.kind == Kind::Worktrees => {
             &[("enter", "open"), ("ctrl+x", "remove"), ("↑↓", "move"), ("esc", "cancel")]
         }
+        Mode::Picker(p) if p.kind == Kind::Files => &[("enter", "insert"), ("↑↓", "move"), ("esc", "cancel")],
         Mode::Picker(_) => &[("enter", "open"), ("↑↓", "move"), ("esc", "cancel")],
         Mode::Rename(_) => &[("enter", "save"), ("empty", "auto"), ("esc", "cancel")],
         Mode::SaveTemplate(_) => &[("enter", "save"), ("esc", "cancel")],

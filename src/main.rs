@@ -1,5 +1,6 @@
 mod app;
 mod event;
+mod files;
 mod graphics;
 mod host;
 mod host_colors;

@@ -24,6 +24,12 @@
 - No index: each search reads the transcript files directly on background threads
 - Also in the main menu as Search conversations, which puts it in the command palette too
 
+### 📄 File picker
+- `ctrl+b f` opens a fuzzy search over the workspace's files and pastes `@path` into Claude's input, without pressing enter
+- In a git repo it lists tracked files plus untracked ones that aren't ignored. Elsewhere it walks the folder, skipping hidden folders, `node_modules`, and `target`. Either way it stops at 20,000 files.
+- Matches at the start of a path segment rank higher, so `app` finds `src/app.rs` first
+- Also in the main menu and the palette as Insert file
+
 ### 🌿 Git worktrees
 - `ctrl+b g` lists the current repo's worktrees. Pick one to open it as a workspace, or pick `+ new branch` to make one.
 - New worktrees go next to the repo as `<repo>-<branch>` (slashes become dashes). A branch that already exists gets checked out; a new one starts from whatever the current workspace has checked out.
