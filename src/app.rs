@@ -1,6 +1,7 @@
 mod input;
 mod review;
 mod session;
+mod snippets;
 mod templates;
 
 use std::io::{self, Write};

@@ -8,6 +8,7 @@ mod notify;
 mod pane;
 mod persist;
 mod shm;
+mod snippet;
 mod picker;
 mod review;
 mod status;

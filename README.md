@@ -77,6 +77,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `,` | Rename the current tab |
 | `t` | Open a workspace template |
 | `T` | Save the current workspace as a template |
+| `i` | Insert a prompt snippet into the current tab |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
@@ -114,6 +115,19 @@ A few things to know:
 - Saving under a name that already exists replaces that template.
 - If the template's folder is already open as a workspace, Claw$h just switches to it, the same as opening that folder from `ctrl+b w`.
 - A file that doesn't parse still shows up in the picker with its error, so it doesn't just quietly disappear.
+
+### Prompt snippets
+
+Snippets are prompts you type a lot, saved as files. Press `ctrl+b` then `i`, pick one, and it gets pasted into the current tab. Enter isn't pressed for you, so you can tweak the text before sending it.
+
+Each snippet is a Markdown file. The file name is the snippet's name, and the whole file is the prompt, so multi-line prompts are fine:
+
+- `~/.config/clawsh/snippets/` (or `$XDG_CONFIG_HOME/clawsh/snippets/`) for snippets you want everywhere
+- `.clawsh/snippets/` inside a workspace's folder for ones that only make sense in that project
+
+The picker lists the workspace's snippets first, then the global ones, each labeled `repo` or `global` with a preview of its first line. If both folders have a snippet with the same name, you'll see both. Blank lines at the top and the final newline are dropped, so pasting a snippet never sends it by accident. If Claude is waiting on you (a permission prompt, say), Claw$h won't paste and tells you to answer Claude first.
+
+Claude Code's own custom slash commands (`.claude/commands/`) are still the better fit for a prompt you want to run as a command. Snippets are for text you want to drop in and edit, in any tab.
 
 ### Tab status
 

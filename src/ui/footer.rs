@@ -41,6 +41,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) -> Option<Position> {
             ("r", "review"),
             (",", "rename"),
             ("t/T", "templates"),
+            ("i", "snippet"),
             ("s", "sidebar"),
             ("a", order),
             ("m", notify),

@@ -1,5 +1,5 @@
-//! The fuzzy pickers: folders for a new workspace (with typed paths), and
-//! saved workspace templates.
+//! The fuzzy pickers: folders for a new workspace (with typed paths), saved
+//! workspace templates, and prompt snippets.
 
 use std::path::{Path, PathBuf};
 
@@ -10,10 +10,11 @@ use crate::workspace::folder_name;
 pub enum Kind {
     Folders,
     Templates,
+    Snippets,
 }
 
 /// One row: the name that's matched against, a faint detail beside it, and
-/// the path it stands for (a folder, or a template file).
+/// the path it stands for (a folder, a template file, or a snippet file).
 pub struct Entry {
     pub name: String,
     pub detail: String,

@@ -33,6 +33,7 @@ pub(super) enum Action {
     Rename,
     OpenTemplate,
     SaveTemplate,
+    Snippet,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -61,6 +62,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('t') if k.modifiers.contains(KeyModifiers::SHIFT) => Action::SaveTemplate,
         KeyCode::Char('t') => Action::OpenTemplate,
         KeyCode::Char('T') => Action::SaveTemplate,
+        KeyCode::Char('i') => Action::Snippet,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
@@ -237,6 +239,7 @@ impl App {
             }
             Action::OpenTemplate => self.open_template_picker(),
             Action::SaveTemplate => self.start_save_template(),
+            Action::Snippet => self.open_snippet_picker(),
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
                 if let Some(pane) = self.spaces.active_tab_mut() {
@@ -265,6 +268,7 @@ impl App {
         match kind {
             Kind::Folders => self.open_workspace(path, &[]),
             Kind::Templates => self.open_template(&path),
+            Kind::Snippets => self.insert_snippet(&path),
         }
     }
 
@@ -398,6 +402,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('a'))), Some(Action::ToggleOrder));
         assert_eq!(prefix_action(&key(KeyCode::Char('r'))), Some(Action::Review));
         assert_eq!(prefix_action(&key(KeyCode::Char('t'))), Some(Action::OpenTemplate));
+        assert_eq!(prefix_action(&key(KeyCode::Char('i'))), Some(Action::Snippet));
         assert_eq!(
             prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),
             Some(Action::SaveTemplate)

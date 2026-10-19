@@ -63,6 +63,10 @@
 - Workspace templates: a folder plus named tabs, each with optional `claude` flags and an opening prompt, stored as TOML in `~/.config/clawsh/templates/`
 - `ctrl+b t` opens a template from a fuzzy picker, and `ctrl+b T` saves the current workspace as one
 - Templates always start new conversations; opening one whose folder is already open just switches to it
+
+### ✂️ Snippets
+- Prompt snippets: Markdown files in `~/.config/clawsh/snippets/` or a workspace's `.clawsh/snippets/`
+- `ctrl+b i` picks one and pastes it into the current tab without pressing Enter, workspace snippets first and each labeled `repo` or `global`
 - `ctrl+b a` sorts the sidebar by activity, without changing tab numbers; the choice is remembered
 
 ### 🔍 Review
