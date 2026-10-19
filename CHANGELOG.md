@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 - October 19, 2026
 
 ### 🎛️ Command palette
 - `ctrl+b space` opens a fuzzy picker of commands, every tab, every workspace, snippets, and templates
