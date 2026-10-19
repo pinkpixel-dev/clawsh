@@ -147,6 +147,15 @@ impl ImageBridge {
             .map(|(_, s)| s.host_id & LOW_MASK)
     }
 
+    /// Deletes one pane's images from the host, for when the pane closes.
+    pub fn forget(&mut self, pane: usize, out: &mut Vec<u8>) {
+        if let Some(state) = self.panes.remove(&pane) {
+            for sent in state.images.values() {
+                delete(out, sent.host_id);
+            }
+        }
+    }
+
     /// Deletes every image this bridge put on the host.
     pub fn clear(&mut self, out: &mut Vec<u8>) {
         for state in self.panes.values() {

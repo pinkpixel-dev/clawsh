@@ -3,8 +3,10 @@ mod event;
 mod graphics;
 mod host;
 mod pane;
+mod picker;
 mod theme;
 mod ui;
+mod workspace;
 
 use anyhow::Result;
 

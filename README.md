@@ -8,7 +8,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 
 ## Status
 
-This is early. Right now it runs a single Claude session in a pane with a footer bar, and kitty images from Claude and its mods are passed through to your terminal. Workspaces, tabs, status badges, and usage limits are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
+This is early, but it's usable. You get workspaces (one per folder) with as many Claude tabs as you want in each, a sidebar and tab bar you can click, and kitty images from Claude and its mods passed through to your terminal. Status badges and usage limits are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
 
 I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
 
@@ -39,13 +39,32 @@ Run it from the folder you want Claude to work in:
 ./target/release/clawsh
 ```
 
-Anything after `clawsh` is passed to `claude`, so `clawsh --resume` works like `claude --resume`.
+That folder becomes your first workspace. Anything after `clawsh` is passed to that first `claude`, so `clawsh --resume` works like `claude --resume`.
 
-| Keys | What it does |
+Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcuts:
+
+| `ctrl+b` then | What it does |
 |---|---|
-| `ctrl+b` then `q` | Quit |
-| `ctrl+b` then `ctrl+b` | Send a literal `ctrl+b` to Claude |
-| `ctrl+b` then `esc` | Cancel |
+| `c` | New Claude tab in the current workspace |
+| `w` | Open a workspace (folder picker) |
+| `x` | Close the current tab |
+| `n` / `p` or `→` / `←` | Next / previous tab |
+| `1` to `9` | Jump to a tab |
+| `j` / `k` or `↓` / `↑` | Next / previous workspace |
+| `s` | Hide or show the sidebar |
+| `q` | Quit |
+| `ctrl+b` | Send a literal `ctrl+b` to Claude |
+| `esc` | Cancel |
+
+You can also click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace`.
+
+The folder picker lists the folder you launched from plus its sibling folders. Type to fuzzy filter, or type a full path (starting with `/` or `~`) to open any folder. If you keep projects somewhere else too, add those parent folders to `CLAWSH_PROJECTS`, separated by colons:
+
+```bash
+CLAWSH_PROJECTS=~/work:~/oss ./target/release/clawsh
+```
+
+Picking a folder that's already open just switches to it. When the last tab closes, Claw$h quits.
 
 To try it with something other than Claude, set `CLAWSH_PROGRAM`:
 

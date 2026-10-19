@@ -21,12 +21,12 @@ use crate::host::CellPx;
 
 /// One running program: its PTY, its emulator, and where it is drawn.
 pub struct Pane {
+    id: usize,
     pty: Pty,
     emu: Emulator,
     input: InputEncoder,
     area: Rect,
     cell: CellPx,
-    pub exited: bool,
 }
 
 impl Pane {
@@ -43,13 +43,17 @@ impl Pane {
         let pty = Pty::spawn(id, program, args, cwd, pty_size(cols, rows, cell), tx)?;
         let emu = Emulator::new(cols, rows, cell, pty.writer())?;
         Ok(Self {
+            id,
             pty,
             emu,
             input: InputEncoder::new()?,
             area,
             cell,
-            exited: false,
         })
+    }
+
+    pub fn id(&self) -> usize {
+        self.id
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {

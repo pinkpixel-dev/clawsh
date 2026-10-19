@@ -3,39 +3,35 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+use super::{Mode, View};
 use crate::theme;
 
-pub struct Areas {
-    pub pane: Rect,
-    pub footer: Rect,
-}
-
-pub fn layout(screen: Rect) -> Areas {
-    let [pane, footer] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(screen);
-    Areas { pane, footer }
-}
-
-pub struct FooterState<'a> {
-    pub title: Option<&'a str>,
-    pub prefix: bool,
-    pub exited: bool,
-}
-
-pub fn draw_footer(frame: &mut Frame, area: Rect, state: &FooterState) {
+pub fn draw(frame: &mut Frame, area: Rect, view: &View) {
     let mut left = vec![Span::styled(" Claw$h ", theme::accent())];
-    if let Some(title) = state.title {
-        left.push(Span::raw(title.to_owned()));
-    }
-    if state.exited {
-        left.push(Span::styled("  exited", theme::warn()));
+    if let Some(ws) = view.workspaces.get(view.active) {
+        left.push(Span::raw(ws.name.clone()));
+        if let Some(title) = ws.tabs.get(ws.active_tab) {
+            left.push(Span::styled(" › ", theme::faint()));
+            left.push(Span::raw(title.clone()));
+        }
     }
 
-    let hints: &[(&str, &str)] = if state.prefix {
-        &[("q", "quit"), ("b", "send ctrl+b"), ("esc", "cancel")]
-    } else {
-        &[("ctrl+b", "commands")]
+    let hints: &[(&str, &str)] = match view.mode {
+        Mode::Normal => &[("ctrl+b", "commands")],
+        Mode::Prefix => &[
+            ("c", "tab"),
+            ("w", "workspace"),
+            ("x", "close"),
+            ("n/p", "tabs"),
+            ("j/k", "spaces"),
+            ("s", "sidebar"),
+            ("q", "quit"),
+            ("esc", "cancel"),
+        ],
+        Mode::Picker(_) => &[("enter", "open"), ("↑↓", "move"), ("esc", "cancel")],
     };
-    let mut right = Vec::new();
+    // Leading gap so a long title never runs into the hints.
+    let mut right = vec![Span::raw("  ")];
     for (key, label) in hints {
         right.push(Span::styled(*key, theme::key_hint()));
         right.push(Span::raw(format!(" {label}  ")));
