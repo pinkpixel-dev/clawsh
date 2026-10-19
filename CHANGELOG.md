@@ -9,6 +9,9 @@
 - Picking a tab or workspace switches to it, and closing things from the palette still asks first
 - Also in the main menu as Command palette, and listed first in the `ctrl+b` footer hints
 
+### 🐛 Fixes
+- Quitting Claude with a double `ctrl+c` (or `/exit`) no longer closes the workspace. If it was the workspace's last tab, a fresh Claude starts in its place
+
 ## 1.1.0 - October 19, 2026
 
 ### 🖱️ Menus

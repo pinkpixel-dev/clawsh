@@ -108,6 +108,12 @@ impl<T> Workspaces<T> {
         Some(tab)
     }
 
+    /// Puts `tab` in the place of the first tab matching `pred`, keeping its
+    /// position and focus. Returns the old tab.
+    pub fn replace_tab(&mut self, pred: impl Fn(&T) -> bool, tab: T) -> Option<T> {
+        self.find_mut(pred).map(|t| std::mem::replace(t, tab))
+    }
+
     /// Removes the active tab (and its workspace if it was the last one).
     pub fn remove_active_tab(&mut self) -> Option<T> {
         let ws = self.list.get(self.active)?;
@@ -212,6 +218,16 @@ mod tests {
         }
         assert!(w.is_empty());
         assert_eq!(w.active_tab(), None);
+    }
+
+    #[test]
+    fn replacing_a_tab_keeps_its_workspace() {
+        let mut w = sample();
+        assert_eq!(w.replace_tab(|&t| t == 4, 5), Some(4));
+        assert_eq!(w.list.len(), 2);
+        assert_eq!(w.current().unwrap().name, "slate");
+        assert_eq!(w.active_tab(), Some(&5));
+        assert_eq!(w.replace_tab(|&t| t == 9, 6), None);
     }
 
     #[test]

@@ -290,7 +290,7 @@ The folder picker lists the folder you launched from plus its sibling folders. T
 CLAWSH_PROJECTS=~/work:~/oss clawsh
 ```
 
-Picking a folder that's already open just switches to it. When the last tab closes, Claw$h quits.
+Picking a folder that's already open just switches to it. When the last tab closes, Claw$h quits. Quitting Claude itself (a double `ctrl+c` or `/exit`) doesn't close the workspace, though. If it was the workspace's last tab, a fresh Claude starts in its place.
 
 ## Light and dark terminals
 

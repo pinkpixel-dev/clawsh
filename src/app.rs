@@ -306,13 +306,21 @@ impl App {
         Ok(())
     }
 
-    /// A pane's program exited, so its tab (or its drawer) goes away.
+    /// A pane's program exited, so its tab (or its drawer) goes away. A
+    /// workspace's last tab gets a fresh program instead, so quitting Claude
+    /// (like a double `ctrl+c`) doesn't close the workspace.
     fn pane_exited(&mut self, id: usize) -> Result<()> {
         if self.drawer_exited(id)? {
             return Ok(());
         }
+        let lone = self.spaces.list.iter().find(|ws| matches!(ws.tabs.as_slice(), [p] if p.id() == id));
         let mut removed = None;
-        self.switch(|s| removed = s.remove_tab(|p| p.id() == id))?;
+        if let Some(path) = lone.map(|ws| ws.path.clone()) {
+            let pane = self.spawn_pane(&path, &[])?;
+            self.switch(|s| removed = s.replace_tab(|p| p.id() == id, pane))?;
+        } else {
+            self.switch(|s| removed = s.remove_tab(|p| p.id() == id))?;
+        }
         self.forget_tab(id, removed)
     }
 
