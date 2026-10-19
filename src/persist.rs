@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::workspace::Workspaces;
+use crate::workspace::{Workspaces, folder_name};
 
 const VERSION: u32 = 1;
 
@@ -63,6 +63,9 @@ pub struct Saved {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SavedWorkspace {
     pub path: PathBuf,
+    /// A display name given from the menu; `None` shows the folder's name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     pub active: usize,
     pub tabs: Vec<Option<SessionRef>>,
     /// Names given with `ctrl+b ,`, lined up with `tabs`. Missing in files
@@ -88,6 +91,7 @@ impl Saved {
                 .iter()
                 .map(|ws| SavedWorkspace {
                     path: ws.path.clone(),
+                    name: (ws.name != folder_name(&ws.path)).then(|| ws.name.clone()),
                     active: ws.active,
                     tabs: ws.tabs.iter().map(&session).collect(),
                     names: match ws.tabs.iter().map(&name).collect::<Vec<_>>() {
@@ -169,6 +173,7 @@ mod tests {
         spaces.add_tab(2);
         spaces.add_workspace(PathBuf::from("/p/slate"), 3);
         spaces.select_tab(0, 0);
+        spaces.rename(Path::new("/p/slate"), "notes");
         let saved = Saved::from_spaces(
             &spaces,
             (false, true),
@@ -179,6 +184,8 @@ mod tests {
         assert!(saved.by_activity);
         assert_eq!(saved.workspaces[0].names, [None, Some("auth work".to_owned())]);
         assert!(saved.workspaces[1].names.is_empty(), "no names, nothing saved");
+        assert_eq!(saved.workspaces[0].name, None, "folder name isn't saved");
+        assert_eq!(saved.workspaces[1].name.as_deref(), Some("notes"));
         assert_eq!(saved.active, 0);
         assert_eq!(saved.workspaces[0].tabs.len(), 2);
         assert_eq!(saved.workspaces[1].tabs[0].as_ref().unwrap().id, "s3");

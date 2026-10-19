@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### 🖱️ Menus
+- Right-click a tab (in the sidebar or the tab bar) for New tab, Rename, and Close
+- Right-click a workspace for New tab, Rename, and Close
+- Closing from a menu asks first, with Cancel selected so a stray enter is safe
+- The `≡ Claw$h` button in the footer (or `ctrl+b o`) opens a menu with workspace, template, snippet, review, sidebar, sort, notification, and quit actions
+- Menu items show their `ctrl+b` key, and pressing that key in the open menu picks the item
+- Menus work with the mouse (hover to highlight, click to pick) and the keyboard (arrows or `j`/`k`, enter, esc)
+
+### 🗂️ Workspaces
+- Workspaces can be renamed. The name is display only, the folder stays the same, and it's saved with the session. An empty name goes back to the folder name.
+
 ## 1.0.0 - October 19, 2026
 
 First public release.

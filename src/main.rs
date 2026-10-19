@@ -4,6 +4,7 @@ mod graphics;
 mod host;
 mod host_colors;
 mod input;
+mod menu;
 mod notify;
 mod pane;
 mod persist;

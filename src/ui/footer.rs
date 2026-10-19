@@ -3,16 +3,24 @@ use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use super::{Mode, View};
+use super::{Click, Hits, Mode, View};
 use crate::theme;
 
-/// Draws the footer. While a template name is being typed, it goes on the
-/// left and this returns where the cursor belongs.
-pub fn draw(frame: &mut Frame, area: Rect, view: &View) -> Option<Position> {
-    let mut left = vec![Span::styled(" Claw$h ", theme::accent())];
+/// Draws the footer. While a template or workspace name is being typed, it
+/// goes on the left and this returns where the cursor belongs.
+pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Option<Position> {
+    // The name doubles as the menu button.
+    let button = Span::styled(" ≡ Claw$h ", theme::accent());
+    hits.push(Rect::new(area.x, area.y, (button.width() as u16).min(area.width), 1), Click::OpenMenu);
+    let mut left = vec![button];
     let mut cursor = None;
-    if let Mode::SaveTemplate(name) = view.mode {
-        left.push(Span::styled("save template as ", theme::muted()));
+    let field = match view.mode {
+        Mode::SaveTemplate(name) => Some(("save template as ", name)),
+        Mode::RenameWorkspace(name) => Some(("rename workspace ", name)),
+        _ => None,
+    };
+    if let Some((prompt, name)) = field {
+        left.push(Span::styled(prompt, theme::muted()));
         let before: u16 = left.iter().map(|s| s.width() as u16).sum();
         left.push(Span::raw(name.to_owned()));
         let at = area.x + before + Span::raw(name).width() as u16;
@@ -42,6 +50,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) -> Option<Position> {
             (",", "rename"),
             ("t/T", "templates"),
             ("i", "snippet"),
+            ("o", "menu"),
             ("s", "sidebar"),
             ("a", order),
             ("m", notify),
@@ -51,6 +60,8 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View) -> Option<Position> {
         Mode::Picker(_) => &[("enter", "open"), ("↑↓", "move"), ("esc", "cancel")],
         Mode::Rename(_) => &[("enter", "save"), ("empty", "auto"), ("esc", "cancel")],
         Mode::SaveTemplate(_) => &[("enter", "save"), ("esc", "cancel")],
+        Mode::RenameWorkspace(_) => &[("enter", "save"), ("empty", "folder name"), ("esc", "cancel")],
+        Mode::Menu(_) => &[("enter", "choose"), ("↑↓", "move"), ("esc", "close")],
         Mode::Review(true) => &[("enter", "save"), ("empty", "delete"), ("esc", "cancel")],
         Mode::Review(false) => &[
             ("u/t", "scope"),

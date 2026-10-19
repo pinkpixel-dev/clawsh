@@ -39,6 +39,9 @@ impl App {
                     self.spaces.add_tab(pane);
                 }
             }
+            if let Some(name) = &ws.name {
+                self.spaces.rename(&ws.path, name);
+            }
             let wi = self.spaces.list.len() - 1;
             self.spaces.select_tab(wi, ws.active.min(ws.tabs.len() - 1));
             placed.push(Some(wi));

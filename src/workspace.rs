@@ -115,6 +115,15 @@ impl<T> Workspaces<T> {
         self.remove_tab(|t| std::ptr::eq(t, target))
     }
 
+    /// Gives a workspace a display name. An empty name goes back to the
+    /// folder's name; the folder itself never changes.
+    pub fn rename(&mut self, path: &Path, name: &str) {
+        if let Some(ws) = self.list.iter_mut().find(|ws| ws.path == path) {
+            let name = name.trim();
+            ws.name = if name.is_empty() { folder_name(path) } else { name.to_owned() };
+        }
+    }
+
     pub fn tabs_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.list.iter_mut().flat_map(|ws| ws.tabs.iter_mut())
     }
@@ -203,6 +212,16 @@ mod tests {
         }
         assert!(w.is_empty());
         assert_eq!(w.active_tab(), None);
+    }
+
+    #[test]
+    fn renaming_is_display_only() {
+        let mut w = sample();
+        w.rename(Path::new("/p/quota"), "  billing  ");
+        assert_eq!(w.list[0].name, "billing");
+        assert_eq!(w.list[0].path, PathBuf::from("/p/quota"));
+        w.rename(Path::new("/p/quota"), " ");
+        assert_eq!(w.list[0].name, "quota", "empty goes back to the folder name");
     }
 
     #[test]

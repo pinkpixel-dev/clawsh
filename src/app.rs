@@ -1,4 +1,5 @@
 mod input;
+mod menu;
 mod review;
 mod session;
 mod snippets;
@@ -18,6 +19,7 @@ use crate::event::AppEvent;
 use crate::graphics::ImageBridge;
 use crate::host::{self, CellPx};
 use crate::host_colors::HostColors;
+use crate::menu::Menu;
 use crate::pane::{CursorState, Pane};
 use crate::notify;
 use crate::persist::{self, Saved};
@@ -47,6 +49,10 @@ enum Mode {
     Rename(String),
     /// Typing a name to save the workspace as a template (`ctrl+b T`).
     SaveTemplate(String),
+    /// Typing a display name for the workspace at this folder.
+    RenameWorkspace(PathBuf, String),
+    /// A pop-up menu: right-click, the footer button, or `ctrl+b o`.
+    Menu(Menu),
     /// The active pane's review view covers the pane area (`ctrl+b r`).
     Review,
 }
@@ -221,6 +227,8 @@ fn build_view<'m>(
             Mode::Copy => ui::Mode::Copy,
             Mode::Rename(text) => ui::Mode::Rename(text),
             Mode::SaveTemplate(text) => ui::Mode::SaveTemplate(text),
+            Mode::RenameWorkspace(_, text) => ui::Mode::RenameWorkspace(text),
+            Mode::Menu(menu) => ui::Mode::Menu(menu),
             Mode::Picker(p) => ui::Mode::Picker(p),
             Mode::Review => ui::Mode::Review(
                 spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),

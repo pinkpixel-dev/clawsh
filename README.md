@@ -110,6 +110,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `t` | Open a workspace template |
 | `T` | Save the current workspace as a template |
 | `i` | Insert a prompt snippet into the current tab |
+| `o` | Open the menu |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
@@ -252,9 +253,15 @@ To copy text yourself, including stuff that's scrolled off the top, press `ctrl+
 
 In tabs where the program doesn't use the mouse itself (a plain shell, for example), you can also just drag across text. It's copied when you let go. Double-click copies the word under the pointer, and triple-click copies the whole line. Claude does its own mouse handling, so inside Claude, use its selection or copy mode. Holding `shift` while dragging still works too, but that's your terminal's own selection, so it covers the whole Claw$h window, sidebar included.
 
-## Mouse and the folder picker
+## Mouse, menus, and the folder picker
 
 You can click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar. When there are more workspaces than fit, the sidebar follows whichever tab you're on, and the mouse wheel scrolls it.
+
+Right-click a tab or a workspace for a small menu with New tab, Rename, and Close. Closing always asks first, and the confirmation starts on Cancel, so hitting enter by accident doesn't kill anything. Renaming a workspace only changes the name Claw$h shows. The folder stays put, and clearing the name goes back to the folder's name.
+
+The `≡ Claw$h` button at the bottom left (or `ctrl+b o`) opens the main menu: new, rename, or close workspace, templates, snippets, review, sidebar order, notifications, the sidebar itself, and quit. Each item shows its `ctrl+b` key, and pressing that key while the menu is open picks it. Menus also work from the keyboard with the arrows (or `j`/`k`), enter, and esc.
+
+Right-clicks inside the pane still go to Claude, so its own mouse handling isn't affected.
 
 The folder picker lists the folder you launched from plus its sibling folders. Type to fuzzy filter, or type a full path (starting with `/` or `~`) to open any folder. If you keep projects somewhere else too, add those parent folders to `CLAWSH_PROJECTS`, separated by colons:
 

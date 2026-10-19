@@ -1,8 +1,10 @@
-//! Claw$h's own chrome: sidebar, tab bar, footer, and the folder picker.
+//! Claw$h's own chrome: sidebar, tab bar, footer, the folder picker, and
+//! pop-up menus.
 //! Pane contents are drawn by the panes themselves.
 
 mod activity;
 mod footer;
+mod menu;
 mod picker;
 pub mod review;
 mod sidebar;
@@ -15,6 +17,7 @@ use ratatui::layout::{Constraint, Layout, Position, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Span;
 
+use crate::menu::Menu;
 use crate::picker::Picker;
 use crate::status::Status;
 use crate::theme;
@@ -60,6 +63,11 @@ pub enum Click {
     PickerItem(usize),
     /// Inside the picker, but not on an item.
     PickerBackground,
+    /// The footer's menu button.
+    OpenMenu,
+    MenuItem(usize),
+    /// Inside a menu, but not on an item.
+    MenuBackground,
 }
 
 /// Clickable regions from the last frame (later entries sit on top), plus
@@ -121,6 +129,9 @@ pub enum Mode<'a> {
     Rename(&'a str),
     /// A template name, being typed in the footer.
     SaveTemplate(&'a str),
+    /// The active workspace's name, being typed in the footer.
+    RenameWorkspace(&'a str),
+    Menu(&'a Menu),
     /// The review view; `true` while a comment is being typed.
     Review(bool),
 }
@@ -155,9 +166,13 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
         sidebar::draw(frame, area, view, &mut hits);
     }
     let rename_cursor = tabbar::draw(frame, areas.tabbar, view, &mut hits);
-    let footer_cursor = footer::draw(frame, areas.footer, view);
+    let footer_cursor = footer::draw(frame, areas.footer, view, &mut hits);
     let cursor = match view.mode {
         Mode::Picker(p) => Some(picker::draw(frame, p, &mut hits)),
+        Mode::Menu(m) => {
+            menu::draw(frame, m, &mut hits);
+            None
+        }
         _ => rename_cursor.or(footer_cursor),
     };
     (hits, cursor)

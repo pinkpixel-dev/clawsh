@@ -13,8 +13,8 @@ use crate::ui::Click;
 
 /// Sidebar rows moved per wheel tick.
 const SIDEBAR_WHEEL: usize = 3;
-/// Longest name `ctrl+b ,` accepts, in characters.
-const MAX_NAME: usize = 60;
+/// Longest tab or workspace name accepted, in characters.
+pub(super) const MAX_NAME: usize = 60;
 
 /// What a key after `ctrl+b` does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +34,7 @@ pub(super) enum Action {
     OpenTemplate,
     SaveTemplate,
     Snippet,
+    Menu,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -63,6 +64,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('t') => Action::OpenTemplate,
         KeyCode::Char('T') => Action::SaveTemplate,
         KeyCode::Char('i') => Action::Snippet,
+        KeyCode::Char('o') => Action::Menu,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
@@ -170,6 +172,22 @@ impl App {
                 }
                 Ok(())
             }
+            Mode::RenameWorkspace(path, text) => {
+                if k.kind == KeyEventKind::Release {
+                    return Ok(());
+                }
+                match edit_line(text, &k) {
+                    LineEdit::Editing => {}
+                    LineEdit::Cancel => self.mode = Mode::Normal,
+                    LineEdit::Submit => {
+                        let (path, name) = (path.clone(), std::mem::take(text));
+                        self.spaces.rename(&path, &name);
+                        self.mode = Mode::Normal;
+                    }
+                }
+                Ok(())
+            }
+            Mode::Menu(_) => self.menu_key(&k),
             Mode::SaveTemplate(text) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -231,15 +249,11 @@ impl App {
                 }
             }
             Action::Review => self.open_review(),
-            Action::Rename => {
-                if let Some(pane) = self.spaces.active_tab_mut() {
-                    // Start from what the tab shows now, ready to edit.
-                    self.mode = Mode::Rename(pane.title().chars().take(MAX_NAME).collect());
-                }
-            }
+            Action::Rename => self.start_rename_tab(),
             Action::OpenTemplate => self.open_template_picker(),
             Action::SaveTemplate => self.start_save_template(),
             Action::Snippet => self.open_snippet_picker(),
+            Action::Menu => self.open_main_menu(),
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
                 if let Some(pane) = self.spaces.active_tab_mut() {
@@ -250,7 +264,14 @@ impl App {
         Ok(())
     }
 
-    fn open_picker(&mut self) {
+    pub(super) fn start_rename_tab(&mut self) {
+        if let Some(pane) = self.spaces.active_tab_mut() {
+            // Start from what the tab shows now, ready to edit.
+            self.mode = Mode::Rename(pane.title().chars().take(MAX_NAME).collect());
+        }
+    }
+
+    pub(super) fn open_picker(&mut self) {
         let extra = std::env::var("CLAWSH_PROJECTS").ok();
         let candidates = Picker::candidates(&self.launch_dir, extra.as_deref());
         self.mode = Mode::Picker(Picker::folders(candidates));
@@ -275,6 +296,7 @@ impl App {
     pub(super) fn mouse(&mut self, m: MouseEvent) -> Result<()> {
         let hit = self.hits.at(m.column, m.row);
         let left_click = m.kind == MouseEventKind::Down(MouseButton::Left);
+        let right_click = m.kind == MouseEventKind::Down(MouseButton::Right);
 
         if let Mode::Picker(picker) = &mut self.mode {
             match m.kind {
@@ -288,6 +310,29 @@ impl App {
                     Some(Click::PickerBackground) => {}
                     _ => self.mode = Mode::Normal,
                 },
+                _ => {}
+            }
+            return Ok(());
+        }
+
+        if let Mode::Menu(menu) = &mut self.mode {
+            match hit {
+                Some(Click::MenuItem(i)) if left_click => {
+                    menu.select(i);
+                    return self.run_menu();
+                }
+                // Hovering moves the highlight, like a desktop menu.
+                Some(Click::MenuItem(i)) => menu.select(i),
+                Some(Click::MenuBackground) => {}
+                // A click anywhere else closes the menu. A right-click on
+                // something else carries on and opens that thing's menu.
+                _ if left_click => self.mode = Mode::Normal,
+                _ if right_click => {
+                    self.mode = Mode::Normal;
+                    if let Some(click) = hit {
+                        self.open_context_menu(click, (m.column, m.row));
+                    }
+                }
                 _ => {}
             }
             return Ok(());
@@ -309,6 +354,9 @@ impl App {
                 self.leave_copy_mode()?;
                 self.mode = Mode::Normal;
                 self.click(click)?;
+            } else if right_click {
+                self.leave_copy_mode()?;
+                self.open_context_menu(click, (m.column, m.row));
             }
             return Ok(());
         }
@@ -336,7 +384,11 @@ impl App {
                 self.open_picker();
                 Ok(())
             }
-            Click::PickerItem(_) | Click::PickerBackground => Ok(()),
+            Click::OpenMenu => {
+                self.open_main_menu();
+                Ok(())
+            }
+            Click::PickerItem(_) | Click::PickerBackground | Click::MenuItem(_) | Click::MenuBackground => Ok(()),
         }
     }
 
@@ -348,7 +400,7 @@ impl App {
                 }
                 Ok(())
             }
-            Mode::Rename(name) | Mode::SaveTemplate(name) => {
+            Mode::Rename(name) | Mode::SaveTemplate(name) | Mode::RenameWorkspace(_, name) => {
                 for c in text.lines().next().unwrap_or("").chars() {
                     push_name_char(name, c);
                 }
@@ -403,6 +455,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('r'))), Some(Action::Review));
         assert_eq!(prefix_action(&key(KeyCode::Char('t'))), Some(Action::OpenTemplate));
         assert_eq!(prefix_action(&key(KeyCode::Char('i'))), Some(Action::Snippet));
+        assert_eq!(prefix_action(&key(KeyCode::Char('o'))), Some(Action::Menu));
         assert_eq!(
             prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),
             Some(Action::SaveTemplate)
