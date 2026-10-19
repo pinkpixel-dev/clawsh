@@ -7,8 +7,10 @@ description = "Claw$h, a ratatui workspace shell for Claude Code sessions"
 
 [dependencies]
 anyhow = "1"
+base64 = "0.22"
 crossterm = "0.29"
-libghostty-vt = { version = "0.2.2", features = ["png"] }
+libghostty-vt = "0.2.2"
+png = "0.18"
 portable-pty = "0.9"
 ratatui = { version = "0.30", features = ["underline-color"] }
 

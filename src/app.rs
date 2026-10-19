@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 
@@ -6,6 +7,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::DefaultTerminal;
 
 use crate::event::{self, AppEvent};
+use crate::graphics::ImageBridge;
 use crate::host::{self, CellPx};
 use crate::pane::{CursorState, Pane};
 use crate::ui;
@@ -16,8 +18,12 @@ pub struct Launch {
     pub cwd: PathBuf,
 }
 
+/// The single pane's ID until tabs land.
+const PANE_ID: usize = 0;
+
 struct App {
     pane: Pane,
+    images: ImageBridge,
     cell: CellPx,
     prefix: bool,
     quit: bool,
@@ -31,7 +37,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
     let cell = CellPx::query();
     let areas = ui::layout(term.size()?.into());
     let pane = Pane::spawn(
-        0,
+        PANE_ID,
         &launch.program,
         &launch.args,
         &launch.cwd,
@@ -41,15 +47,33 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch) -> Result<()> {
     )?;
     let mut app = App {
         pane,
+        images: ImageBridge::new(),
         cell,
         prefix: false,
         quit: false,
         cursor_style: None,
     };
 
-    while !app.quit {
-        app.draw(term)?;
-        app.wait(&rx)?;
+    let result = (|| {
+        while !app.quit {
+            app.draw(term)?;
+            app.wait(&rx)?;
+        }
+        Ok(())
+    })();
+
+    let mut out = Vec::new();
+    app.images.clear(&mut out);
+    write_host(&out)?;
+    result
+}
+
+/// Sends kitty graphics commands straight to the host, outside ratatui.
+fn write_host(bytes: &[u8]) -> Result<()> {
+    if !bytes.is_empty() {
+        let mut stdout = io::stdout().lock();
+        stdout.write_all(bytes)?;
+        stdout.flush()?;
     }
     Ok(())
 }
@@ -59,9 +83,17 @@ impl App {
         let areas = ui::layout(term.size()?.into());
         self.pane.set_area(areas.pane, self.cell)?;
 
+        // Images have to exist on the host before the cells that show them.
+        let mut out = Vec::new();
+        self.images.sync(PANE_ID, self.pane.emulator_mut(), &mut out)?;
+        write_host(&out)?;
+
+        let images = &self.images;
         let mut result = Ok(None);
         term.draw(|frame| {
-            result = self.pane.render(frame.buffer_mut());
+            result = self
+                .pane
+                .render(frame.buffer_mut(), |id| images.remap(PANE_ID, id));
             let title = self.pane.title();
             ui::draw_footer(
                 frame,

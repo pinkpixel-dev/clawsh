@@ -1,5 +1,6 @@
 mod emulator;
 mod input;
+mod png;
 mod pty;
 
 use std::path::Path;
@@ -11,8 +12,7 @@ use portable_pty::PtySize;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 
-pub use emulator::CursorState;
-use emulator::Emulator;
+pub use emulator::{CursorState, Emulator, ImageData};
 use input::InputEncoder;
 use pty::Pty;
 
@@ -74,8 +74,16 @@ impl Pane {
         Ok(())
     }
 
-    pub fn render(&mut self, buf: &mut Buffer) -> Result<Option<CursorState>> {
-        self.emu.render(self.area, buf)
+    pub fn render(
+        &mut self,
+        buf: &mut Buffer,
+        remap: impl Fn(u32) -> Option<u32>,
+    ) -> Result<Option<CursorState>> {
+        self.emu.render(self.area, buf, remap)
+    }
+
+    pub fn emulator_mut(&mut self) -> &mut Emulator {
+        &mut self.emu
     }
 
     pub fn area(&self) -> Rect {

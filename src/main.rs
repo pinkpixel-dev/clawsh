@@ -1,5 +1,6 @@
 mod app;
 mod event;
+mod graphics;
 mod host;
 mod pane;
 mod theme;

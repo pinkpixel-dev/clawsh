@@ -8,7 +8,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 
 ## Status
 
-This is early. Right now it runs a single Claude session in a pane with a footer bar. Workspaces, tabs, status badges, usage limits, and kitty image passthrough are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
+This is early. Right now it runs a single Claude session in a pane with a footer bar, and kitty images from Claude and its mods are passed through to your terminal. Workspaces, tabs, status badges, and usage limits are still in progress. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
 
 I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
 

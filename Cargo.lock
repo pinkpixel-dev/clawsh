@@ -155,8 +155,10 @@ name = "clawsh-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "crossterm",
  "libghostty-vt",
+ "png",
  "portable-pty",
  "ratatui",
 ]
@@ -634,7 +636,6 @@ dependencies = [
  "bitflags 2.13.2",
  "int-enum",
  "libghostty-vt-sys",
- "png",
 ]
 
 [[package]]
