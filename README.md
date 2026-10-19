@@ -8,7 +8,7 @@ Claw$h is a terminal workspace for Claude Code. Each tab runs a real `claude` pr
 
 I mostly use Claude, so the goal is to keep everything Claude already does (including mods and their kitty graphics) working exactly as it does in a normal terminal, and add the small things around it that I like having: per-workspace status, usage limits, and quick switching.
 
-The command is `clawsh` (the `$` only lives in the name, since shells would read `$h` as a variable). On crates.io the package is `clawsh-tui`, because `clawsh` was already taken there.
+The command is `clawsh` (the `$` only lives in the name, since shells would read `$h` as a variable). On crates.io the package is `clawsh-tui`.
 
 ## Status
 
