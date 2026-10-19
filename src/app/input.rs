@@ -35,6 +35,8 @@ pub(super) enum Action {
     SaveTemplate,
     Snippet,
     Menu,
+    Terminal,
+    SwapFocus,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -65,6 +67,8 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('T') => Action::SaveTemplate,
         KeyCode::Char('i') => Action::Snippet,
         KeyCode::Char('o') => Action::Menu,
+        KeyCode::Char('e') => Action::Terminal,
+        KeyCode::Char(';') => Action::SwapFocus,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
@@ -117,6 +121,9 @@ impl App {
                     }
                     return Ok(());
                 }
+                if let Some(drawer) = self.focused_drawer_mut() {
+                    return drawer.key(&k);
+                }
                 match self.spaces.active_tab_mut() {
                     Some(pane) => {
                         pane.status = pane.status.seen();
@@ -138,7 +145,7 @@ impl App {
                 }
             }
             Mode::Copy => {
-                let still_copying = match self.spaces.active_tab_mut() {
+                let still_copying = match self.focused_pane_mut() {
                     Some(pane) => pane.copy_key(&k)?,
                     None => false,
                 };
@@ -243,7 +250,7 @@ impl App {
             Action::ToggleNotifications => self.notifications = !self.notifications,
             Action::ToggleOrder => self.by_activity = !self.by_activity,
             Action::CopyMode => {
-                if let Some(pane) = self.spaces.active_tab_mut() {
+                if let Some(pane) = self.focused_pane_mut() {
                     pane.enter_copy_mode()?;
                     self.mode = Mode::Copy;
                 }
@@ -254,9 +261,15 @@ impl App {
             Action::SaveTemplate => self.start_save_template(),
             Action::Snippet => self.open_snippet_picker(),
             Action::Menu => self.open_main_menu(),
+            Action::Terminal => {
+                if let Some(id) = self.active_id() {
+                    self.toggle_terminal(id)?;
+                }
+            }
+            Action::SwapFocus => self.swap_focus()?,
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
-                if let Some(pane) = self.spaces.active_tab_mut() {
+                if let Some(pane) = self.focused_pane_mut() {
                     pane.key(key)?;
                 }
             }
@@ -315,6 +328,16 @@ impl App {
             return Ok(());
         }
 
+        // While the divider is held, the pointer only resizes.
+        if self.resizing {
+            match m.kind {
+                MouseEventKind::Drag(MouseButton::Left) => self.drag_divider(m),
+                MouseEventKind::Moved | MouseEventKind::Drag(_) => {}
+                _ => self.resizing = false,
+            }
+            return Ok(());
+        }
+
         if let Mode::Menu(menu) = &mut self.mode {
             match hit {
                 Some(Click::MenuItem(i)) if left_click => {
@@ -360,17 +383,8 @@ impl App {
             }
             return Ok(());
         }
-        if self.pane_area.contains(Position::new(m.column, m.row))
-            && let Some(pane) = self.spaces.active_tab_mut()
-        {
-            if matches!(self.mode, Mode::Review) {
-                if let Some(review) = &mut pane.review {
-                    let outcome = review.mouse(&m);
-                    return self.review_outcome(outcome);
-                }
-            } else {
-                pane.mouse(&m)?;
-            }
+        if self.pane_area.contains(Position::new(m.column, m.row)) {
+            return self.pane_mouse(m);
         }
         Ok(())
     }
@@ -386,6 +400,14 @@ impl App {
             }
             Click::OpenMenu => {
                 self.open_main_menu();
+                Ok(())
+            }
+            Click::Terminal => match self.active_id() {
+                Some(id) => self.toggle_terminal(id),
+                None => Ok(()),
+            },
+            Click::Divider => {
+                self.resizing = true;
                 Ok(())
             }
             Click::PickerItem(_) | Click::PickerBackground | Click::MenuItem(_) | Click::MenuBackground => Ok(()),
@@ -412,7 +434,7 @@ impl App {
                 }
                 Ok(())
             }
-            _ => match self.spaces.active_tab_mut() {
+            _ => match self.focused_pane_mut() {
                 Some(pane) => pane.paste(text),
                 None => Ok(()),
             },
@@ -456,6 +478,8 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('t'))), Some(Action::OpenTemplate));
         assert_eq!(prefix_action(&key(KeyCode::Char('i'))), Some(Action::Snippet));
         assert_eq!(prefix_action(&key(KeyCode::Char('o'))), Some(Action::Menu));
+        assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
+        assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(
             prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),
             Some(Action::SaveTemplate)

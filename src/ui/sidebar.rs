@@ -167,6 +167,8 @@ mod tests {
             follow_active: follow,
             notifications: true,
             by_activity: false,
+            terminal: None,
+            divider: None,
         }
     }
 

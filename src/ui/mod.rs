@@ -3,6 +3,7 @@
 //! Pane contents are drawn by the panes themselves.
 
 mod activity;
+pub mod drawer;
 mod footer;
 mod menu;
 mod picker;
@@ -68,6 +69,10 @@ pub enum Click {
     MenuItem(usize),
     /// Inside a menu, but not on an item.
     MenuBackground,
+    /// The tab bar's terminal button.
+    Terminal,
+    /// The line between Claude and the terminal drawer, for resizing.
+    Divider,
 }
 
 /// Clickable regions from the last frame (later entries sit on top), plus
@@ -156,12 +161,20 @@ pub struct View<'a> {
     pub notifications: bool,
     /// List the sidebar busiest-first instead of in open order (`ctrl+b a`).
     pub by_activity: bool,
+    /// The active tab's terminal drawer: `None` when it has none, otherwise
+    /// whether it's shown.
+    pub terminal: Option<bool>,
+    /// The divider, while the active tab's drawer is shown.
+    pub divider: Option<drawer::DividerView>,
 }
 
 /// Draws everything except the pane. Returns the click map and, while the
 /// picker or a text field is open, where its text cursor goes.
 pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Option<Position>) {
     let mut hits = Hits::default();
+    if let Some(divider) = &view.divider {
+        drawer::draw_divider(frame.buffer_mut(), divider, &mut hits);
+    }
     if let Some(area) = areas.sidebar {
         sidebar::draw(frame, area, view, &mut hits);
     }

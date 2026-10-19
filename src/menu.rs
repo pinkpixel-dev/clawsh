@@ -16,6 +16,13 @@ pub enum Choice {
     CloseWorkspace(PathBuf),
     ConfirmCloseTab(usize),
     ConfirmCloseWorkspace(PathBuf),
+    /// Shows or hides a tab's terminal drawer, starting a shell if needed.
+    ToggleTerminal(usize),
+    /// Asks first.
+    CloseTerminal(usize),
+    ConfirmCloseTerminal(usize),
+    /// Drawers on the right instead of the bottom, or back.
+    ToggleTerminalSide,
     Cancel,
     NewWorkspace,
     OpenTemplate,
@@ -68,6 +75,7 @@ impl Item {
 /// The toggles the main menu labels depend on.
 pub struct Settings {
     pub by_activity: bool,
+    pub terminal_right: bool,
     pub notifications: bool,
     pub sidebar: bool,
 }
@@ -91,15 +99,19 @@ impl Menu {
         }
     }
 
-    pub fn for_tab(anchor: (u16, u16), id: usize, workspace: PathBuf) -> Self {
-        Self::new(
-            anchor,
-            vec![
-                Item::new("New tab", Choice::NewTab(workspace)),
-                Item::new("Rename", Choice::RenameTab(id)),
-                Item::new("Close", Choice::CloseTab(id)).danger(),
-            ],
-        )
+    /// `terminal` is `None` when the tab has no drawer, otherwise whether
+    /// it's shown.
+    pub fn for_tab(anchor: (u16, u16), id: usize, workspace: PathBuf, terminal: Option<bool>) -> Self {
+        let mut items = vec![
+            Item::new("New tab", Choice::NewTab(workspace)),
+            Item::new("Rename", Choice::RenameTab(id)),
+            Item::new(terminal_label(terminal), Choice::ToggleTerminal(id)).divider(),
+        ];
+        if terminal.is_some() {
+            items.push(Item::new("Close terminal", Choice::CloseTerminal(id)).danger());
+        }
+        items.push(Item::new("Close", Choice::CloseTab(id)).danger().divider());
+        Self::new(anchor, items)
     }
 
     pub fn for_workspace(anchor: (u16, u16), path: PathBuf) -> Self {
@@ -114,8 +126,14 @@ impl Menu {
     }
 
     /// Everything Claw$h can do outside a pane, with the active workspace as
-    /// the target for rename and close.
-    pub fn main(anchor: (u16, u16), workspace: Option<PathBuf>, s: &Settings) -> Self {
+    /// the target for rename and close and the active tab (its pane id and
+    /// drawer state) for the terminal.
+    pub fn main(
+        anchor: (u16, u16),
+        workspace: Option<PathBuf>,
+        tab: Option<(usize, Option<bool>)>,
+        s: &Settings,
+    ) -> Self {
         let mut items = vec![Item::new("New workspace", Choice::NewWorkspace).key("w")];
         if let Some(path) = workspace {
             items.push(Item::new("Rename workspace", Choice::RenameWorkspace(path.clone())));
@@ -126,6 +144,19 @@ impl Menu {
             Item::new("Save template", Choice::SaveTemplate).key("T"),
             Item::new("Insert snippet", Choice::Snippet).key("i"),
             Item::new("Review changes", Choice::Review).key("r"),
+        ]);
+        let side = Item::new(
+            if s.terminal_right { "Terminal at the bottom" } else { "Terminal on the right" },
+            Choice::ToggleTerminalSide,
+        );
+        match tab {
+            Some((id, terminal)) => items.extend([
+                Item::new(terminal_label(terminal), Choice::ToggleTerminal(id)).key("e").divider(),
+                side,
+            ]),
+            None => items.push(side.divider()),
+        }
+        items.extend([
             Item::new(if s.by_activity { "Sort by open order" } else { "Sort by activity" }, Choice::ToggleOrder)
                 .key("a")
                 .divider(),
@@ -166,6 +197,20 @@ impl Menu {
         menu
     }
 
+    /// Asks before closing a tab's terminal, which ends whatever runs in it.
+    pub fn confirm_terminal(anchor: (u16, u16), id: usize) -> Self {
+        let mut menu = Self::new(
+            anchor,
+            vec![
+                Item::new("Close terminal", Choice::ConfirmCloseTerminal(id)).danger(),
+                Item::new("Cancel", Choice::Cancel),
+            ],
+        );
+        menu.title = Some(" close terminal? ".to_owned());
+        menu.selected = 1;
+        menu
+    }
+
     /// Moves the selection, wrapping around.
     pub fn move_by(&mut self, delta: isize) {
         let len = self.items.len() as isize;
@@ -183,6 +228,10 @@ impl Menu {
     pub fn choice(&self) -> Option<&Choice> {
         self.items.get(self.selected).map(|i| &i.choice)
     }
+}
+
+fn terminal_label(terminal: Option<bool>) -> &'static str {
+    if terminal == Some(true) { "Hide terminal" } else { "Show terminal" }
 }
 
 /// Longest name shown in a confirmation title, in characters.
@@ -204,6 +253,7 @@ mod tests {
     fn settings(on: bool) -> Settings {
         Settings {
             by_activity: on,
+            terminal_right: on,
             notifications: on,
             sidebar: on,
         }
@@ -211,13 +261,22 @@ mod tests {
 
     #[test]
     fn selection_wraps_both_ways() {
-        let mut m = Menu::for_tab((0, 0), 3, PathBuf::from("/p"));
+        let mut m = Menu::for_tab((0, 0), 3, PathBuf::from("/p"), None);
         m.move_by(-1);
         assert_eq!(m.choice(), Some(&Choice::CloseTab(3)));
         m.move_by(1);
         assert_eq!(m.choice(), Some(&Choice::NewTab(PathBuf::from("/p"))));
         m.select(99);
         assert_eq!(m.selected, 0, "out of range is ignored");
+    }
+
+    #[test]
+    fn tab_menu_offers_closing_a_terminal_only_when_there_is_one() {
+        let labels = |t| Menu::for_tab((0, 0), 1, PathBuf::from("/p"), t).items.into_iter().map(|i| i.label).collect::<Vec<_>>();
+        assert_eq!(labels(None), ["New tab", "Rename", "Show terminal", "Close"]);
+        assert_eq!(labels(Some(false)), ["New tab", "Rename", "Show terminal", "Close terminal", "Close"]);
+        assert_eq!(labels(Some(true))[2], "Hide terminal");
+        assert_eq!(Menu::confirm_terminal((0, 0), 1).choice(), Some(&Choice::Cancel));
     }
 
     #[test]
@@ -234,12 +293,16 @@ mod tests {
     #[test]
     fn main_menu_labels_follow_the_toggles() {
         let labels = |m: &Menu| m.items.iter().map(|i| i.label.clone()).collect::<Vec<_>>();
-        let on = labels(&Menu::main((0, 0), None, &settings(true)));
+        let on = labels(&Menu::main((0, 0), None, None, &settings(true)));
+        assert!(on.contains(&"Terminal at the bottom".to_owned()));
+        assert!(!on.iter().any(|l| l.ends_with("terminal")), "no tab, no toggle");
         assert!(on.contains(&"Sort by open order".to_owned()));
         assert!(on.contains(&"Mute notifications".to_owned()));
         assert!(on.contains(&"Hide sidebar".to_owned()));
         assert!(!on.contains(&"Close workspace".to_owned()), "no workspace, nothing to close");
-        let off = labels(&Menu::main((0, 0), Some(PathBuf::from("/p")), &settings(false)));
+        let off = labels(&Menu::main((0, 0), Some(PathBuf::from("/p")), Some((1, Some(true))), &settings(false)));
+        assert!(off.contains(&"Hide terminal".to_owned()));
+        assert!(off.contains(&"Terminal on the right".to_owned()));
         assert!(off.contains(&"Sort by activity".to_owned()));
         assert!(off.contains(&"Unmute notifications".to_owned()));
         assert!(off.contains(&"Show sidebar".to_owned()));

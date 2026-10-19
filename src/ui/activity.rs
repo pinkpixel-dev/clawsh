@@ -121,6 +121,8 @@ mod tests {
             follow_active: false,
             notifications: true,
             by_activity,
+            terminal: None,
+            divider: None,
         }
     }
 

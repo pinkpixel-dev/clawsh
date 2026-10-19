@@ -10,6 +10,7 @@ use super::{App, Mode};
 use crate::menu::{Choice, Menu, Settings};
 use crate::pane::Pane;
 use crate::ui::Click;
+use crate::ui::drawer::Side;
 use crate::workspace::Workspace;
 
 impl App {
@@ -17,14 +18,16 @@ impl App {
     pub(super) fn open_main_menu(&mut self) {
         let settings = Settings {
             by_activity: self.by_activity,
+            terminal_right: self.drawer_side == Side::Right,
             notifications: self.notifications,
             sidebar: self.show_sidebar,
         };
         let workspace = self.spaces.current().map(|ws| ws.path.clone());
+        let tab = self.spaces.active_tab().map(|t| (t.id(), t.drawer.as_ref().map(|d| d.shown)));
         // The footer sits right under the pane, so this opens just above
         // the menu button.
         let anchor = (0, self.pane_area.bottom());
-        self.mode = Mode::Menu(Menu::main(anchor, workspace, &settings));
+        self.mode = Mode::Menu(Menu::main(anchor, workspace, tab, &settings));
     }
 
     /// A right-click on the chrome. Only tabs and workspaces have menus.
@@ -33,7 +36,7 @@ impl App {
             Click::Tab(wi, ti) => {
                 let Some(ws) = self.spaces.list.get(wi) else { return };
                 let Some(pane) = ws.tabs.get(ti) else { return };
-                Menu::for_tab(at, pane.id(), ws.path.clone())
+                Menu::for_tab(at, pane.id(), ws.path.clone(), pane.drawer.as_ref().map(|d| d.shown))
             }
             Click::Workspace(wi) => match self.spaces.list.get(wi) {
                 Some(ws) => Menu::for_workspace(at, ws.path.clone()),
@@ -123,6 +126,10 @@ impl App {
                     self.close_pane(id)?;
                 }
             }
+            Choice::ToggleTerminal(id) => self.toggle_terminal(id)?,
+            Choice::CloseTerminal(id) => self.mode = Mode::Menu(Menu::confirm_terminal(at, id)),
+            Choice::ConfirmCloseTerminal(id) => self.close_terminal(id)?,
+            Choice::ToggleTerminalSide => self.toggle_terminal_side(),
             Choice::Cancel => {}
             Choice::NewWorkspace => self.open_picker(),
             Choice::OpenTemplate => self.open_template_picker(),
@@ -142,7 +149,7 @@ impl App {
     }
 
     /// Switches to the tab with this pane id. `false` if it's gone.
-    fn select_pane(&mut self, id: usize) -> Result<bool> {
+    pub(super) fn select_pane(&mut self, id: usize) -> Result<bool> {
         let found = self.spaces.list.iter().enumerate().find_map(|(wi, ws)| {
             ws.tabs.iter().position(|p| p.id() == id).map(|ti| (wi, ti))
         });

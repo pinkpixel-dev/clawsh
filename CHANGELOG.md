@@ -10,6 +10,14 @@
 - Menu items show their `ctrl+b` key, and pressing that key in the open menu picks the item
 - Menus work with the mouse (hover to highlight, click to pick) and the keyboard (arrows or `j`/`k`, enter, esc)
 
+### 🖥️ Terminal drawer
+- Every tab can open its own shell in the workspace folder with `ctrl+b e` or the `>_` button at the right end of the tab bar
+- It opens below Claude by default so Claude keeps its full width. The main menu can move drawers to the right side instead.
+- Hiding a drawer keeps its shell running, so a dev server keeps going while you work in Claude
+- `ctrl+b ;` or a click moves the keyboard between Claude and the drawer, and the divider turns pink while the drawer has it
+- Drag the divider to resize. The side and size are saved with the session; drawers themselves start closed.
+- Close a drawer by exiting its shell, or with Close terminal in the tab's right-click menu (which asks first)
+
 ### 🗂️ Workspaces
 - Workspaces can be renamed. The name is display only, the folder stays the same, and it's saved with the session. An empty name goes back to the folder name.
 

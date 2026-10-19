@@ -6,6 +6,7 @@ use anyhow::Result;
 
 use super::App;
 use crate::persist::{self, Saved};
+use crate::ui::drawer::Side;
 
 impl App {
     /// Brings back the last session's workspaces, each tab resuming its own
@@ -79,6 +80,7 @@ impl App {
         let saved = Saved::from_spaces(
             &self.spaces,
             (self.notifications, self.by_activity),
+            (self.drawer_side == Side::Right, self.drawer_percent),
             |p| p.session.clone(),
             |p| p.name.clone(),
         );

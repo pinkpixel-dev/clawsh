@@ -6,6 +6,8 @@ use super::{Click, Hits, Mode, View, status_icon, truncate};
 use crate::theme;
 
 const MAX_TITLE: usize = 24;
+/// The terminal button at the right end.
+const TERMINAL: &str = " >_ ";
 
 /// Draws the tabs. While a rename is open, the active tab shows the text
 /// being typed and this returns where the cursor goes.
@@ -15,7 +17,19 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
     let ws = view.workspaces.get(view.active)?;
     let mut cursor = None;
 
-    let right = area.right();
+    // The terminal button sits at the far right; tabs stop before it.
+    let button = TERMINAL.len() as u16;
+    let right = area.right().saturating_sub(button + 1);
+    if area.width > button {
+        let style = match view.terminal {
+            Some(true) => theme::accent(),
+            Some(false) => theme::muted(),
+            None => theme::faint(),
+        };
+        let at = area.right() - button;
+        buf.set_line(at, area.y, &Line::from(Span::styled(TERMINAL, style)), button);
+        hits.push(Rect::new(at, area.y, button, 1), Click::Terminal);
+    }
     let mut x = area.x;
     for (ti, tab) in ws.tabs.iter().enumerate() {
         let active = ti == ws.active_tab;

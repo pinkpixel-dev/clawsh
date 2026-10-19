@@ -60,6 +60,17 @@ pub struct Pane {
     /// The template tab this pane was opened from, so `ctrl+b T` can save
     /// its flags and prompt again.
     pub from_template: Option<template::Tab>,
+    /// The tab's terminal drawer (`ctrl+b e`), once it's been opened.
+    pub drawer: Option<Drawer>,
+}
+
+/// A shell in the tab's folder, drawn beside or below Claude.
+pub struct Drawer {
+    pub pane: Box<Pane>,
+    /// Hidden drawers keep their shell running.
+    pub shown: bool,
+    /// Keys go to the drawer instead of Claude. Only while it's shown.
+    pub focused: bool,
 }
 
 impl Pane {
@@ -95,6 +106,7 @@ impl Pane {
             turn_start: None,
             review: None,
             from_template: None,
+            drawer: None,
         })
     }
 

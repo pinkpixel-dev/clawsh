@@ -50,6 +50,8 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
             (",", "rename"),
             ("t/T", "templates"),
             ("i", "snippet"),
+            ("e", "terminal"),
+            (";", "focus"),
             ("o", "menu"),
             ("s", "sidebar"),
             ("a", order),

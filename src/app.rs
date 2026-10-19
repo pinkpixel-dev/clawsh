@@ -1,3 +1,4 @@
+mod drawer;
 mod input;
 mod menu;
 mod review;
@@ -26,6 +27,7 @@ use crate::persist::{self, Saved};
 use crate::picker::Picker;
 use crate::status::{self, Status, StatusServer};
 use crate::theme;
+use crate::ui::drawer::{DEFAULT_PERCENT, DividerView, Side};
 use crate::ui::{self, Hits, TabView, View, WorkspaceView};
 use crate::usage::{Report, UsagePoller};
 use crate::workspace::Workspaces;
@@ -81,6 +83,11 @@ struct App {
     notifications: bool,
     /// Sidebar busiest-first instead of open order (`ctrl+b a`).
     by_activity: bool,
+    /// Where terminal drawers open, and how much of the pane area they take.
+    drawer_side: Side,
+    drawer_percent: u16,
+    /// The divider is being dragged.
+    resizing: bool,
     last_saved: Option<Saved>,
     started: Instant,
     launch_dir: PathBuf,
@@ -132,6 +139,9 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         last_saved: None,
         notifications: true,
         by_activity: false,
+        drawer_side: Side::Bottom,
+        drawer_percent: DEFAULT_PERCENT,
+        resizing: false,
         started: Instant::now(),
         launch_dir: launch.cwd.clone(),
         next_id: 0,
@@ -152,6 +162,8 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
     if let Some(saved) = &saved {
         app.notifications = saved.notifications;
         app.by_activity = saved.by_activity;
+        app.drawer_side = if saved.drawer_right { Side::Right } else { Side::Bottom };
+        app.drawer_percent = saved.drawer_percent;
         if !launch.fresh {
             app.restore(saved)?;
         }
@@ -195,6 +207,9 @@ fn build_view<'m>(
     notice: Option<&'m str>,
 ) -> View<'m> {
     View {
+        // The drawer parts are filled in by `draw`, which knows the layout.
+        terminal: None,
+        divider: None,
         notice,
         notifications,
         by_activity,
@@ -282,27 +297,42 @@ impl App {
 
     fn close_active_tab(&mut self) -> Result<()> {
         let id = self.active_id();
-        self.switch(|s| {
-            s.remove_active_tab();
-        })?;
+        let mut removed = None;
+        self.switch(|s| removed = s.remove_active_tab())?;
         if let Some(id) = id {
-            self.forget_images(id)?;
+            self.forget_tab(id, removed)?;
         }
         Ok(())
     }
 
-    /// A pane's program exited, so its tab goes away.
+    /// A pane's program exited, so its tab (or its drawer) goes away.
     fn pane_exited(&mut self, id: usize) -> Result<()> {
-        self.switch(|s| {
-            s.remove_tab(|p| p.id() == id);
-        })?;
+        if self.drawer_exited(id)? {
+            return Ok(());
+        }
+        let mut removed = None;
+        self.switch(|s| removed = s.remove_tab(|p| p.id() == id))?;
+        self.forget_tab(id, removed)
+    }
+
+    /// Cleans up after a removed tab, including its drawer's images. Dropping
+    /// the tab ends its programs.
+    fn forget_tab(&mut self, id: usize, tab: Option<Pane>) -> Result<()> {
+        if let Some(d) = tab.as_ref().and_then(|t| t.drawer.as_ref()) {
+            self.forget_pane_images(d.pane.id())?;
+        }
+        drop(tab);
         self.forget_images(id)
     }
 
-    fn forget_images(&mut self, id: usize) -> Result<()> {
+    fn forget_pane_images(&mut self, id: usize) -> Result<()> {
         let mut out = Vec::new();
         self.images.forget(id, &mut out);
-        write_host(&out)?;
+        write_host(&out)
+    }
+
+    fn forget_images(&mut self, id: usize) -> Result<()> {
+        self.forget_pane_images(id)?;
         if self.spaces.is_empty() {
             self.quit = true;
         }
@@ -314,6 +344,9 @@ impl App {
         let mut out = Vec::new();
         for pane in self.spaces.tabs_mut() {
             out.extend(pane.take_host_output());
+            if let Some(d) = &mut pane.drawer {
+                out.extend(d.pane.take_host_output());
+            }
         }
         write_host(&out)
     }
@@ -323,7 +356,7 @@ impl App {
     fn leave_copy_mode(&mut self) -> Result<()> {
         if matches!(self.mode, Mode::Copy) {
             self.mode = Mode::Normal;
-            if let Some(pane) = self.spaces.active_tab_mut() {
+            if let Some(pane) = self.focused_pane_mut() {
                 pane.exit_copy_mode()?;
             }
         }
@@ -342,41 +375,62 @@ impl App {
         if matches!(self.mode, Mode::Review) {
             self.mode = Mode::Normal;
         }
-        let before = self.active_id();
+        let before = self.focused_id();
         change(&mut self.spaces);
-        let after = self.active_id();
         if let Some(pane) = self.spaces.active_tab_mut() {
             pane.status = pane.status.seen();
         }
-        if before != after && self.host_focused {
-            if let Some(old) = before.and_then(|id| self.spaces.find_mut(|p| p.id() == id)) {
-                old.focus(false)?;
-            }
-            if let Some(new) = self.spaces.active_tab_mut() {
-                new.focus(true)?;
-            }
-        }
-        Ok(())
+        self.refocus(before)
     }
 
     fn draw(&mut self, term: &mut DefaultTerminal) -> Result<()> {
         let areas = ui::layout(term.size()?.into(), self.show_sidebar);
         self.pane_area = areas.pane;
+        let split = self.drawer_split();
         // Hidden panes keep the same size, so switching tabs never reflows.
+        // Only showing or hiding a tab's own drawer resizes its Claude.
         for pane in self.spaces.tabs_mut() {
-            pane.set_area(areas.pane, self.cell)?;
+            if split.is_none()
+                && let Some(d) = &mut pane.drawer
+            {
+                // No room for both; the drawer hides until it's reopened.
+                (d.shown, d.focused) = (false, false);
+            }
+            let shown = pane.drawer.as_ref().is_some_and(|d| d.shown);
+            let main = match split {
+                Some(s) if shown => s.main,
+                _ => areas.pane,
+            };
+            pane.set_area(main, self.cell)?;
+            if let (Some(d), Some(s)) = (&mut pane.drawer, split) {
+                d.pane.set_area(s.drawer, self.cell)?;
+            }
         }
 
         // Images have to exist on the host before the cells that show them.
         let reviewing = matches!(self.mode, Mode::Review);
         let mut out = Vec::new();
-        if let Some(pane) = self.spaces.active_tab_mut()
-            && !reviewing
-        {
-            let id = pane.id();
-            self.images.sync(id, pane.emulator_mut(), &mut out)?;
+        if let Some(pane) = self.spaces.active_tab_mut() {
+            if !reviewing {
+                let id = pane.id();
+                self.images.sync(id, pane.emulator_mut(), &mut out)?;
+            }
+            if let Some(d) = pane.drawer.as_mut().filter(|d| d.shown) {
+                let id = d.pane.id();
+                self.images.sync(id, d.pane.emulator_mut(), &mut out)?;
+            }
         }
         write_host(&out)?;
+        let tab_drawer = self.spaces.active_tab().and_then(|p| p.drawer.as_ref());
+        let terminal = tab_drawer.map(|d| d.shown);
+        let divider = match (tab_drawer, split) {
+            (Some(d), Some(s)) if d.shown => Some(DividerView {
+                rect: s.divider,
+                side: self.drawer_side,
+                focused: d.focused,
+            }),
+            _ => None,
+        };
 
         let frame = (self.started.elapsed().as_millis() / SPINNER_TICK.as_millis()) as usize;
         // Scroll the sidebar to the active tab only when it changes, so the
@@ -384,7 +438,7 @@ impl App {
         let active = self.spaces.current().map(|ws| (self.spaces.active, ws.active));
         let follow = active != self.sidebar_followed;
         self.sidebar_followed = active;
-        let view = build_view(
+        let mut view = build_view(
             &self.spaces,
             &self.mode,
             self.usage.as_ref(),
@@ -393,6 +447,7 @@ impl App {
             (self.notifications, self.by_activity),
             self.notice.as_deref(),
         );
+        (view.terminal, view.divider) = (terminal, divider);
         let images = &self.images;
         let spaces = &mut self.spaces;
         let normal = matches!(self.mode, Mode::Normal);
@@ -402,14 +457,26 @@ impl App {
         term.draw(|frame| {
             if let Some(pane) = spaces.active_tab_mut() {
                 let area = pane.area();
-                if reviewing && let Some(review) = pane.review.as_mut() {
+                let main_cursor = if reviewing && let Some(review) = pane.review.as_mut() {
                     review_cursor = ui::review::draw(frame, area, review);
+                    Ok(None)
                 } else {
                     let id = pane.id();
-                    pane_cursor = pane
-                        .render(frame.buffer_mut(), |img| images.remap(id, img))
-                        .map(|c| c.map(|c| (c, area)));
-                }
+                    pane.render(frame.buffer_mut(), |img| images.remap(id, img))
+                        .map(|c| c.map(|c| (c, area)))
+                };
+                // The cursor belongs to whichever pane has the keyboard.
+                pane_cursor = match pane.drawer.as_mut().filter(|d| d.shown) {
+                    Some(d) => {
+                        let (id, area) = (d.pane.id(), d.pane.area());
+                        let drawer_cursor = d
+                            .pane
+                            .render(frame.buffer_mut(), |img| images.remap(id, img))
+                            .map(|c| c.map(|c| (c, area)));
+                        if d.focused { drawer_cursor } else { main_cursor }
+                    }
+                    None => main_cursor,
+                };
             }
             let (chrome_hits, picker_cursor) = ui::draw_chrome(frame, &areas, &view);
             hits = chrome_hits;
@@ -460,7 +527,7 @@ impl App {
     fn handle(&mut self, ev: AppEvent) -> Result<()> {
         match ev {
             AppEvent::PtyOutput(id, bytes) => {
-                if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
+                if let Some(pane) = self.pane_by_id_mut(id) {
                     pane.feed(&bytes);
                 }
             }
@@ -530,6 +597,9 @@ impl App {
                 }
                 for pane in self.spaces.tabs_mut() {
                     pane.set_host_colors(self.colors)?;
+                    if let Some(d) = &mut pane.drawer {
+                        d.pane.set_host_colors(self.colors)?;
+                    }
                 }
             }
             AppEvent::Input(input) => match input {
@@ -538,8 +608,9 @@ impl App {
                 Event::Paste(text) => self.paste(&text)?,
                 Event::FocusGained | Event::FocusLost => {
                     self.host_focused = matches!(input, Event::FocusGained);
-                    if let Some(pane) = self.spaces.active_tab_mut() {
-                        pane.focus(self.host_focused)?;
+                    let focused = self.host_focused;
+                    if let Some(pane) = self.focused_pane_mut() {
+                        pane.focus(focused)?;
                     }
                 }
                 Event::Resize(..) => self.cell = CellPx::query(),

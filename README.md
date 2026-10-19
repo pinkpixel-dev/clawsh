@@ -22,6 +22,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 - **[Sessions that come back](#picking-up-where-you-left-off).** Workspaces, tabs, and conversations reopen on the next launch.
 - **[Review view](#reviewing-changes).** Look over what Claude changed (everything uncommitted, or just the last turn), comment on lines, and send the comments back.
 - **[Workspace templates](#workspace-templates)** and **[prompt snippets](#prompt-snippets)** for the setups and prompts you repeat.
+- **[Terminal drawer](#terminal-drawer).** A shell under (or beside) each tab for your dev server and quick commands.
 - **[Copy mode](#copying-from-claude)** with scrollback, and Claude's own copies reach your real clipboard.
 - **Images.** Kitty graphics from Claude and its mods show up in kitty and Ghostty, animated ones included.
 - **[Light and dark](#light-and-dark-terminals).** Claw$h and Claude both follow your terminal's theme.
@@ -111,6 +112,8 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `T` | Save the current workspace as a template |
 | `i` | Insert a prompt snippet into the current tab |
 | `o` | Open the menu |
+| `e` | Show or hide this tab's terminal drawer |
+| `;` | Move the keyboard between Claude and the drawer |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
@@ -234,6 +237,21 @@ Each snippet is a Markdown file. The file name is the snippet's name, and the wh
 The picker lists the workspace's snippets first, then the global ones, each labeled `repo` or `global` with a preview of its first line. If both folders have a snippet with the same name, you'll see both. Blank lines at the top and the final newline are dropped, so pasting a snippet never sends it by accident. If Claude is waiting on you (a permission prompt, say), Claw$h won't paste and tells you to answer Claude first.
 
 Claude Code's own custom slash commands (`.claude/commands/`) are still the better fit for a prompt you want to run as a command. Snippets are for text you want to drop in and edit, in any tab.
+
+## Terminal drawer
+
+Every tab can have its own shell, for running a dev server or anything else without leaving Claw$h. Press `ctrl+b e` or click `>_` at the right end of the tab bar, and a terminal opens under Claude in the workspace folder. It runs your `$SHELL` (or `/bin/sh` if that isn't set).
+
+It opens at the bottom on purpose. Claude's status lines, mods, and images are laid out for its full width, and a drawer below only costs it some rows. If you'd rather have it on the right, pick Terminal on the right from the `≡ Claw$h` menu.
+
+A few things to know:
+
+- `ctrl+b e` or `>_` again hides the drawer, but the shell keeps running. Your dev server doesn't care whether you're looking at it.
+- `ctrl+b ;` moves the keyboard between Claude and the drawer, and so does clicking either one. The divider is pink while the drawer has the keyboard.
+- Drag the divider to resize. The size and side apply to every tab and are saved with the session.
+- `exit` in the shell closes the drawer. So does Close terminal in the tab's right-click menu, which asks first since it ends whatever's running.
+- Drawers aren't restored when you relaunch Claw$h. Each tab starts without one.
+- If the window gets too small for both, the drawer hides until you open it again.
 
 ## Copying from Claude
 

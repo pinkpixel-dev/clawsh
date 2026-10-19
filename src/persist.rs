@@ -56,6 +56,12 @@ pub struct Saved {
     /// Sidebar in activity order (`ctrl+b a`). Kept even by `--fresh`.
     #[serde(default)]
     pub by_activity: bool,
+    /// Terminal drawers open on the right instead of the bottom.
+    #[serde(default)]
+    pub drawer_right: bool,
+    /// How much of the pane area a drawer takes, in percent.
+    #[serde(default = "drawer_percent")]
+    pub drawer_percent: u16,
     pub active: usize,
     pub workspaces: Vec<SavedWorkspace>,
 }
@@ -78,6 +84,7 @@ impl Saved {
     pub fn from_spaces<T>(
         spaces: &Workspaces<T>,
         (notifications, by_activity): (bool, bool),
+        (drawer_right, drawer_percent): (bool, u16),
         session: impl Fn(&T) -> Option<SessionRef>,
         name: impl Fn(&T) -> Option<String>,
     ) -> Self {
@@ -85,6 +92,8 @@ impl Saved {
             version: VERSION,
             notifications,
             by_activity,
+            drawer_right,
+            drawer_percent,
             active: spaces.active,
             workspaces: spaces
                 .list
@@ -106,6 +115,10 @@ impl Saved {
 
 fn on() -> bool {
     true
+}
+
+fn drawer_percent() -> u16 {
+    crate::ui::drawer::DEFAULT_PERCENT
 }
 
 pub fn default_path() -> Option<PathBuf> {
@@ -177,11 +190,14 @@ mod tests {
         let saved = Saved::from_spaces(
             &spaces,
             (false, true),
+            (true, 50),
             |&t| SessionRef::new(&format!("s{t}"), None),
             |&t| (t == 2).then(|| "auth work".to_owned()),
         );
         assert!(!saved.notifications);
         assert!(saved.by_activity);
+        assert!(saved.drawer_right);
+        assert_eq!(saved.drawer_percent, 50);
         assert_eq!(saved.workspaces[0].names, [None, Some("auth work".to_owned())]);
         assert!(saved.workspaces[1].names.is_empty(), "no names, nothing saved");
         assert_eq!(saved.workspaces[0].name, None, "folder name isn't saved");
@@ -200,6 +216,8 @@ mod tests {
         fs::write(&path, r#"{"version":1,"active":0,"workspaces":[]}"#).unwrap();
         let old = load(&path).unwrap();
         assert!(old.notifications && !old.by_activity);
+        assert!(!old.drawer_right);
+        assert_eq!(old.drawer_percent, crate::ui::drawer::DEFAULT_PERCENT);
 
         fs::write(&path, "not json").unwrap();
         assert_eq!(load(&path), None, "corrupt file means a clean start");
