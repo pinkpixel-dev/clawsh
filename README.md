@@ -4,17 +4,29 @@
 
 # Claw$h
 
-Claw$h is a terminal workspace for Claude Code. Each tab runs a real `claude` process, and Claw$h wraps it in a ratatui interface with room for workspaces, tabs, and status, kind of like herdr but built around Claude.
+Claw$h is a terminal workspace for Claude Code. Each tab runs a real `claude` process, and Claw$h wraps it in a ratatui interface with room for workspaces, tabs, and status, all built around Claude.
 
 I mostly use Claude, so the goal is to keep everything Claude already does (including mods and their kitty graphics) working exactly as it does in a normal terminal, and add the small things around it that I like having: per-workspace status, usage limits, and quick switching.
 
 The command is `clawsh` (the `$` only lives in the name, since shells would read `$h` as a variable). On crates.io the package is `clawsh-tui`.
 
+## Features
+
+- **Workspaces and tabs.** One workspace per folder, as many Claude tabs as you want in each, and a sidebar and tab bar you can click.
+- **[Tab status](#tab-status).** See which tab is working, waiting on you, done, or failed, with desktop notifications for the ones you aren't looking at.
+- **[Usage limits](#usage-limits).** Your Claude 5-hour and weekly windows at the bottom of the sidebar.
+- **[Sessions that come back](#picking-up-where-you-left-off).** Workspaces, tabs, and conversations reopen on the next launch.
+- **[Review view](#reviewing-changes).** Look over what Claude changed (everything uncommitted, or just the last turn), comment on lines, and send the comments back.
+- **[Workspace templates](#workspace-templates)** and **[prompt snippets](#prompt-snippets)** for the setups and prompts you repeat.
+- **[Copy mode](#copying-from-claude)** with scrollback, and Claude's own copies reach your real clipboard.
+- **Images.** Kitty graphics from Claude and its mods show up in kitty and Ghostty, animated ones included.
+- **[Light and dark](#light-and-dark-terminals).** Claw$h and Claude both follow your terminal's theme.
+
 ## Status
 
-This is early, but it's usable. You get workspaces (one per folder) with as many Claude tabs as you want in each, a sidebar and tab bar you can click, and kitty images from Claude and its mods passed through to your terminal. Each tab shows what its Claude is doing, so you can tell at a glance which project needs you, and the bottom of the sidebar shows how much of your 5-hour and weekly Claude limits you have left. See [DOCS/ROADMAP.md](DOCS/ROADMAP.md) for the plan.
+Claw$h is at 1.0, which for me means it's what I actually use for my Claude work every day, and the pieces in this README all work. It's still a one-person project, so there are probably rough edges I haven't hit yet. If you find one, please [open an issue](https://github.com/pinkpixel-dev/clawsh/issues).
 
-I've only run it on Linux so far. Image support will need kitty or Ghostty as the host terminal.
+It's Linux only. I haven't tried macOS, and Windows won't work. Images need kitty or Ghostty as your terminal.
 
 ## Requirements
 
@@ -40,9 +52,9 @@ tar xzf clawsh-x86_64-unknown-linux-gnu.tar.gz
 install -Dm755 clawsh-x86_64-unknown-linux-gnu/clawsh ~/.local/bin/clawsh
 ```
 
-You can also install from crates.io with `cargo install clawsh-tui`, but that compiles Ghostty from source, so you'll need the Zig setup described in [Building](#building) first.
+You can also install from crates.io with `cargo install clawsh-tui`, but that compiles Ghostty from source, so you'll need the Zig setup described in [Building from source](#building-from-source) first.
 
-## Building
+### Building from source
 
 The terminal emulation comes from [libghostty-vt](https://docs.rs/libghostty-vt), which builds Ghostty from source with Zig. Ghostty needs **Zig 0.15.x** exactly, and newer Zig releases (like the 0.16 in Arch's repos) fail its version check.
 
@@ -61,7 +73,7 @@ CLAWSH_ZIG_DIR=/path/to/zig-0.15.2 ./scripts/cargo.sh build --release
 
 The first build clones Ghostty into the build directory, so it needs network access and takes a minute.
 
-## Usage
+## Getting started
 
 Run it from the folder you want Claude to work in:
 
@@ -72,20 +84,6 @@ clawsh
 If you built from source and didn't copy the binary anywhere, it's `./target/release/clawsh` instead.
 
 That folder becomes your active workspace. Anything after `clawsh` is passed to Claude in that folder, so `clawsh --resume` works like `claude --resume`.
-
-### Picking up where you left off
-
-Claw$h remembers your workspaces, their tabs, and which conversation each tab was in. Next time you start it, everything comes back, and each tab reopens its conversation with `claude --resume`. A tab that never got a prompt just starts a fresh Claude, since there's nothing to resume yet. Folders that have been deleted are skipped, and the folder you launched from is added if it wasn't already open.
-
-It's saved to `~/.local/state/clawsh/session.json` (or `$XDG_STATE_HOME/clawsh/session.json`) every time something changes, so closing the window or a crash doesn't lose anything. Closing every tab leaves you with a clean slate next time.
-
-To skip the restore once and start clean:
-
-```bash
-clawsh --fresh
-```
-
-`--fresh` is the only flag Claw$h keeps for itself. Everything else still goes to Claude.
 
 ### Keys
 
@@ -112,54 +110,21 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
 
-### Tab names
+### Picking up where you left off
 
-Tabs name themselves. Claw$h uses the title Claude gives its session (without the little status glyph in front), and when there isn't one yet, it checks the session's transcript: a name you set with `/rename`, then the title Claude generated, then the first thing you typed. That last one is what keeps a tab you only ran slash commands in from being stuck as `claude` forever.
+Claw$h remembers your workspaces, their tabs, and which conversation each tab was in. Next time you start it, everything comes back, and each tab reopens its conversation with `claude --resume`. A tab that never got a prompt just starts a fresh Claude, since there's nothing to resume yet. Folders that have been deleted are skipped, and the folder you launched from is added if it wasn't already open.
 
-If you'd rather pick the name yourself, press `ctrl+b` then `,`. The current name is filled in so you can tweak it, `Enter` saves, and `esc` cancels. A name you set sticks, even across restarts. Save an empty name to hand the tab back to auto-naming.
+It's saved to `~/.local/state/clawsh/session.json` (or `$XDG_STATE_HOME/clawsh/session.json`) every time something changes, so closing the window or a crash doesn't lose anything. Closing every tab leaves you with a clean slate next time.
 
-### Workspace templates
+To skip the restore once and start clean:
 
-If you open the same project with the same set of tabs over and over, save it as a template. Set things up the way you like, press `ctrl+b` then `T`, type a name (the folder's name is filled in), and press `Enter`. Later, `ctrl+b` then `t` opens a picker of your templates, and picking one opens its folder as a new workspace with all its tabs.
-
-Templates are plain TOML files in `~/.config/clawsh/templates/` (or `$XDG_CONFIG_HOME/clawsh/templates/`), one per template, so you can also write or tweak them by hand:
-
-```toml
-name = "slate"
-path = "~/code/slate"
-
-[[tabs]]
-name = "main"
-
-[[tabs]]
-name = "review"
-args = ["--model", "opus"]
-prompt = "Read DOCS/ROADMAP.md and tell me what's next"
+```bash
+clawsh --fresh
 ```
 
-Each tab can have a `name` (same as setting one with `ctrl+b ,`), extra `claude` flags in `args`, and a `prompt` that gets sent as the first message when the tab starts. All three are optional. A template with no tabs opens one plain tab.
+`--fresh` is the only flag Claw$h keeps for itself. Everything else still goes to Claude.
 
-A few things to know:
-
-- Templates always start new conversations. Saving one records the folder, the names you gave tabs, and the flags and prompt of tabs that came from a template, but never which conversation a tab was in.
-- Saving under a name that already exists replaces that template.
-- If the template's folder is already open as a workspace, Claw$h just switches to it, the same as opening that folder from `ctrl+b w`.
-- A file that doesn't parse still shows up in the picker with its error, so it doesn't just quietly disappear.
-
-### Prompt snippets
-
-Snippets are prompts you type a lot, saved as files. Press `ctrl+b` then `i`, pick one, and it gets pasted into the current tab. Enter isn't pressed for you, so you can tweak the text before sending it.
-
-Each snippet is a Markdown file. The file name is the snippet's name, and the whole file is the prompt, so multi-line prompts are fine:
-
-- `~/.config/clawsh/snippets/` (or `$XDG_CONFIG_HOME/clawsh/snippets/`) for snippets you want everywhere
-- `.clawsh/snippets/` inside a workspace's folder for ones that only make sense in that project
-
-The picker lists the workspace's snippets first, then the global ones, each labeled `repo` or `global` with a preview of its first line. If both folders have a snippet with the same name, you'll see both. Blank lines at the top and the final newline are dropped, so pasting a snippet never sends it by accident. If Claude is waiting on you (a permission prompt, say), Claw$h won't paste and tells you to answer Claude first.
-
-Claude Code's own custom slash commands (`.claude/commands/`) are still the better fit for a prompt you want to run as a command. Snippets are for text you want to drop in and edit, in any tab.
-
-### Tab status
+## Tab status
 
 Every tab has a little status icon in the sidebar and the tab bar, and each workspace shows its most urgent one:
 
@@ -179,9 +144,7 @@ Press `ctrl+b` then `a` to sort the sidebar by activity: whatever's waiting on y
 
 When a tab you're *not* looking at starts waiting on you, finishes, or fails, Claw$h also sends a desktop notification (through `notify-send`), like "Claw$h · quota: fix auth is waiting on you". Press `ctrl+b` then `m` to turn them off or back on. That choice is remembered, even across `--fresh`.
 
-This works through Claude Code hooks. Claw$h starts each Claude tab with `claude --settings '…'`, which adds a few hooks that run `clawsh __hook` and report back over a local socket. Those hooks are added next to your own hooks, not instead of them, and nothing in your Claude config gets changed. If you set `CLAWSH_PROGRAM` to something other than `claude`, the hooks are left off.
-
-### Usage limits
+## Usage limits
 
 The bottom of the sidebar shows your Claude 5-hour and weekly windows: a bar and the percent you have **left**, plus how long until each one resets. The bar is green normally, yellow under 25% left, and red under 10%.
 
@@ -189,17 +152,13 @@ Claw$h reads your Claude Code login from `~/.claude/.credentials.json` (or `$CLA
 
 Usage only shows when Claw$h is running Claude, so it stays out of the way with `CLAWSH_PROGRAM`.
 
-### Light and dark terminals
+## Tab names
 
-When Claw$h starts, it asks your terminal for its real text and background colors and passes them on to every tab. So when Claude checks whether your terminal is light or dark to pick its theme, it gets the right answer.
+Tabs name themselves. Claw$h uses the title Claude gives its session (without the little status glyph in front), and when there isn't one yet, it checks the session's transcript: a name you set with `/rename`, then the title Claude generated, then the first thing you typed. That last one is what keeps a tab you only ran slash commands in from being stuck as `claude` forever.
 
-Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a warm light palette on light terminals, the charcoal one on dark ones. If you switch your terminal's theme while Claw$h is running, it notices and switches its own palette, and every tab gets the new colors. That needs a terminal that announces theme changes (mode 2031); Ghostty does, and I believe recent kitty does as well. Claude itself picks its theme when it starts (as of Claude Code 2.1.303 it doesn't listen for theme changes), so a Claude that's already running keeps its theme until you restart it or change it with `/theme`. New tabs get the right one. If your terminal doesn't report its colors at all, Claw$h stays dark. To pin one yourself:
+If you'd rather pick the name yourself, press `ctrl+b` then `,`. The current name is filled in so you can tweak it, `Enter` saves, and `esc` cancels. A name you set sticks, even across restarts. Save an empty name to hand the tab back to auto-naming.
 
-```bash
-CLAWSH_THEME=light clawsh
-```
-
-### Reviewing changes
+## Reviewing changes
 
 Press `ctrl+b` then `r` to see what changed in the current tab's folder. The review takes over the tab: changed files on the left with their `+`/`-` counts, and the selected file's diff on the right. It's a git thing, so the folder has to be in a git repo.
 
@@ -230,7 +189,48 @@ Comments stay with the tab until you send them, so closing the review and coming
 
 A couple of things to know. Renamed files show up as a delete plus an add. The last-turn snapshot runs inside Claude's prompt hook, so in a very big repo it adds a little delay before each prompt (it took 18 ms on this repo). Both scopes write snapshot objects into the repo's `.git` folder. Git cleans those up on its own eventually, since nothing points at them.
 
-### Copying from Claude
+## Workspace templates
+
+If you open the same project with the same set of tabs over and over, save it as a template. Set things up the way you like, press `ctrl+b` then `T`, type a name (the folder's name is filled in), and press `Enter`. Later, `ctrl+b` then `t` opens a picker of your templates, and picking one opens its folder as a new workspace with all its tabs.
+
+Templates are plain TOML files in `~/.config/clawsh/templates/` (or `$XDG_CONFIG_HOME/clawsh/templates/`), one per template, so you can also write or tweak them by hand:
+
+```toml
+name = "slate"
+path = "~/code/slate"
+
+[[tabs]]
+name = "main"
+
+[[tabs]]
+name = "review"
+args = ["--model", "opus"]
+prompt = "Read DOCS/ROADMAP.md and tell me what's next"
+```
+
+Each tab can have a `name` (same as setting one with `ctrl+b ,`), extra `claude` flags in `args`, and a `prompt` that gets sent as the first message when the tab starts. All three are optional. A template with no tabs opens one plain tab.
+
+A few things to know:
+
+- Templates always start new conversations. Saving one records the folder, the names you gave tabs, and the flags and prompt of tabs that came from a template, but never which conversation a tab was in.
+- Saving under a name that already exists replaces that template.
+- If the template's folder is already open as a workspace, Claw$h just switches to it, the same as opening that folder from `ctrl+b w`.
+- A file that doesn't parse still shows up in the picker with its error, so it doesn't just quietly disappear.
+
+## Prompt snippets
+
+Snippets are prompts you type a lot, saved as files. Press `ctrl+b` then `i`, pick one, and it gets pasted into the current tab. Enter isn't pressed for you, so you can tweak the text before sending it.
+
+Each snippet is a Markdown file. The file name is the snippet's name, and the whole file is the prompt, so multi-line prompts are fine:
+
+- `~/.config/clawsh/snippets/` (or `$XDG_CONFIG_HOME/clawsh/snippets/`) for snippets you want everywhere
+- `.clawsh/snippets/` inside a workspace's folder for ones that only make sense in that project
+
+The picker lists the workspace's snippets first, then the global ones, each labeled `repo` or `global` with a preview of its first line. If both folders have a snippet with the same name, you'll see both. Blank lines at the top and the final newline are dropped, so pasting a snippet never sends it by accident. If Claude is waiting on you (a permission prompt, say), Claw$h won't paste and tells you to answer Claude first.
+
+Claude Code's own custom slash commands (`.claude/commands/`) are still the better fit for a prompt you want to run as a command. Snippets are for text you want to drop in and edit, in any tab.
+
+## Copying from Claude
 
 When Claude copies something (it uses the OSC 52 escape sequence), Claw$h passes it on to kitty or Ghostty, so it lands on your real clipboard just like it would outside Claw$h. Reading the clipboard isn't passed through, so nothing running in a tab can read what you've copied.
 
@@ -248,7 +248,7 @@ To copy text yourself, including stuff that's scrolled off the top, press `ctrl+
 
 In tabs where the program doesn't use the mouse itself (a plain shell, for example), you can also just drag across text. It's copied when you let go. Double-click copies the word under the pointer, and triple-click copies the whole line. Claude does its own mouse handling, so inside Claude, use its selection or copy mode. Holding `shift` while dragging still works too, but that's your terminal's own selection, so it covers the whole Claw$h window, sidebar included.
 
-### Mouse and the folder picker
+## Mouse and the folder picker
 
 You can click workspaces and tabs in the sidebar, tabs in the tab bar, `+` for a new tab, and `+ new workspace` at the top of the sidebar. When there are more workspaces than fit, the sidebar follows whichever tab you're on, and the mouse wheel scrolls it.
 
@@ -260,11 +260,17 @@ CLAWSH_PROJECTS=~/work:~/oss clawsh
 
 Picking a folder that's already open just switches to it. When the last tab closes, Claw$h quits.
 
-To try it with something other than Claude, set `CLAWSH_PROGRAM`:
+## Light and dark terminals
+
+When Claw$h starts, it asks your terminal for its real text and background colors and passes them on to every tab. So when Claude checks whether your terminal is light or dark to pick its theme, it gets the right answer.
+
+Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a warm light palette on light terminals, the charcoal one on dark ones. If you switch your terminal's theme while Claw$h is running, it notices and switches its own palette, and every tab gets the new colors. That needs a terminal that announces theme changes (mode 2031); Ghostty does, and I believe recent kitty does as well. Claude itself picks its theme when it starts (as of Claude Code 2.1.303 it doesn't listen for theme changes), so a Claude that's already running keeps its theme until you restart it or change it with `/theme`. New tabs get the right one. If your terminal doesn't report its colors at all, Claw$h stays dark. To pin one yourself:
 
 ```bash
-CLAWSH_PROGRAM=bash clawsh
+CLAWSH_THEME=light clawsh
 ```
+
+## Configuration
 
 ### Environment variables
 
@@ -276,12 +282,40 @@ CLAWSH_PROGRAM=bash clawsh
 | `CLAWSH_IMAGES` | `direct` sends images as base64 instead of through shared memory |
 | `CLAUDE_CONFIG_DIR` | Where to find your Claude Code login, if it's not in `~/.claude` |
 
+To try it with something other than Claude, set `CLAWSH_PROGRAM`:
+
+```bash
+CLAWSH_PROGRAM=bash clawsh
+```
+
+### Files
+
+| Path | What's in it |
+|---|---|
+| `~/.local/state/clawsh/session.json` | Your open workspaces and tabs, for restoring them (`$XDG_STATE_HOME` if set) |
+| `~/.config/clawsh/templates/` | Workspace templates, one TOML file each (`$XDG_CONFIG_HOME` if set) |
+| `~/.config/clawsh/snippets/` | Global prompt snippets, one Markdown file each |
+| `<workspace>/.clawsh/snippets/` | Snippets for just that project |
+| `~/.claude/.credentials.json` | Your Claude Code login. Claw$h only reads it, for usage limits |
+
+## How it works
+
+Each tab runs a real `claude` process in its own PTY. [libghostty-vt](https://docs.rs/libghostty-vt), Ghostty's terminal emulation library, keeps track of what's on that tab's screen, and Claw$h draws it with ratatui alongside the sidebar and tab bar. Images Claude draws with the kitty graphics protocol are re-sent to your real terminal under IDs of their own, so tabs can't overwrite each other's pictures.
+
+This works through Claude Code hooks. Claw$h starts each Claude tab with `claude --settings '…'`, which adds a few hooks that run `clawsh __hook` and report back over a local socket. Those hooks are added next to your own hooks, not instead of them, and nothing in your Claude config gets changed. If you set `CLAWSH_PROGRAM` to something other than `claude`, the hooks are left off.
+
 ## Troubleshooting
 
 **Images from Claude mods don't show up.** Claw$h hands image pixels to your terminal through shared memory (`/dev/shm`), which is quick and keeps animated mods cheap. It switches to plain base64 on its own over SSH. If your terminal still doesn't show images, try forcing base64:
 
 ```bash
 CLAWSH_IMAGES=direct clawsh
+```
+
+**`cargo install cargo-binstall` says it needs a newer rustc.** That's cargo-binstall's own requirement, not Claw$h's. Update Rust with `rustup update stable`, or install the older cargo-binstall it suggests:
+
+```bash
+cargo install cargo-binstall@1.24.0 --locked
 ```
 
 ## License
