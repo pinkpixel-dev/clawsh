@@ -149,7 +149,7 @@ mod tests {
     }
 
     fn view() -> View<'static> {
-        let ws = |name: &str, tabs| WorkspaceView { name: name.into(), tabs, active_tab: 0 };
+        let ws = |name: &str, tabs| WorkspaceView { name: name.into(), head: None, tabs, active_tab: 0 };
         View {
             notice: None,
             spinner_frame: 0,

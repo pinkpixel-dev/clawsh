@@ -8,6 +8,7 @@ mod search;
 mod session;
 mod snippets;
 mod templates;
+mod worktrees;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -57,6 +58,8 @@ enum Mode {
     SaveTemplate(String),
     /// Typing a display name for the workspace at this folder.
     RenameWorkspace(PathBuf, String),
+    /// Typing a branch for a new worktree, made from this folder's checkout.
+    NewWorktree(PathBuf, String),
     /// A pop-up menu: right-click, the footer button, or `ctrl+b o`.
     Menu(Menu),
     /// The active pane's review view covers the pane area (`ctrl+b r`).
@@ -231,6 +234,7 @@ fn build_view<'m>(
             .iter()
             .map(|ws| WorkspaceView {
                 name: ws.name.clone(),
+                head: ws.head.clone(),
                 tabs: ws
                     .tabs
                     .iter()
@@ -252,6 +256,7 @@ fn build_view<'m>(
             Mode::Rename(text) => ui::Mode::Rename(text),
             Mode::SaveTemplate(text) => ui::Mode::SaveTemplate(text),
             Mode::RenameWorkspace(_, text) => ui::Mode::RenameWorkspace(text),
+            Mode::NewWorktree(_, text) => ui::Mode::NewWorktree(text),
             Mode::Menu(menu) => ui::Mode::Menu(menu),
             Mode::Picker(p) => ui::Mode::Picker(p),
             Mode::Radar(selected) => ui::Mode::Radar(*selected),
@@ -399,6 +404,7 @@ impl App {
         if let Some(pane) = self.spaces.active_tab_mut() {
             pane.status = pane.status.seen();
         }
+        self.refresh_heads();
         self.refocus(before)
     }
 
@@ -533,7 +539,11 @@ impl App {
         let tick = if working { SPINNER_TICK } else { IDLE_TICK };
         let ev = match rx.recv_timeout(tick) {
             Ok(ev) => ev,
-            Err(RecvTimeoutError::Timeout) => return Ok(()),
+            Err(RecvTimeoutError::Timeout) => {
+                // A branch switched from a drawer's shell has no hook to say so.
+                self.refresh_heads();
+                return Ok(());
+            }
             Err(RecvTimeoutError::Disconnected) => return Err(RecvTimeoutError::Disconnected.into()),
         };
         self.handle(ev)?;
@@ -552,6 +562,8 @@ impl App {
             }
             AppEvent::PtyExited(id) => self.pane_exited(id)?,
             AppEvent::Status(id, status) => {
+                // Claude may have switched branches.
+                self.refresh_heads();
                 // No point flagging news on the tab you're looking at.
                 let watching = self.host_focused && self.active_id() == Some(id);
                 let mut news = None;

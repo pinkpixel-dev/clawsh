@@ -24,6 +24,13 @@
 - No index: each search reads the transcript files directly on background threads
 - Also in the main menu as Search conversations, which puts it in the command palette too
 
+### 🌿 Git worktrees
+- `ctrl+b g` lists the current repo's worktrees. Pick one to open it as a workspace, or pick `+ new branch` to make one.
+- New worktrees go next to the repo as `<repo>-<branch>` (slashes become dashes). A branch that already exists gets checked out; a new one starts from whatever the current workspace has checked out.
+- The sidebar shows each workspace's branch next to its name, with `⎇` in front for linked worktrees
+- `ctrl+x` in the picker removes a worktree's folder. The branch stays. It won't touch the main checkout or a worktree that's open as a workspace, and if there are uncommitted changes the confirmation says how many will be lost.
+- Also in the main menu and the palette as Worktrees
+
 ### 🐛 Fixes
 - Quitting Claude with a double `ctrl+c` (or `/exit`) no longer closes the workspace. If it was the workspace's last tab, a fresh Claude starts in its place
 

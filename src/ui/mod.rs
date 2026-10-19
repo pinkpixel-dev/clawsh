@@ -26,6 +26,7 @@ use crate::search::Search;
 use crate::status::Status;
 use crate::theme;
 use crate::usage::Report;
+use crate::worktree::Head;
 
 const SIDEBAR_WIDTH: u16 = 26;
 /// Below this width the sidebar hides itself so the pane stays usable.
@@ -125,6 +126,8 @@ pub struct TabView {
 
 pub struct WorkspaceView {
     pub name: String,
+    /// The folder's git branch, when it's in a repository.
+    pub head: Option<Head>,
     pub tabs: Vec<TabView>,
     pub active_tab: usize,
 }
@@ -151,6 +154,8 @@ pub enum Mode<'a> {
     SaveTemplate(&'a str),
     /// The active workspace's name, being typed in the footer.
     RenameWorkspace(&'a str),
+    /// A branch for a new worktree, being typed in the footer.
+    NewWorktree(&'a str),
     Menu(&'a Menu),
     /// The review view; `true` while a comment is being typed.
     Review(bool),
@@ -277,6 +282,7 @@ mod tests {
         let tab = |status| TabView { id: 0, title: String::new(), status, idle_for: None };
         let ws = WorkspaceView {
             name: String::new(),
+            head: None,
             tabs: vec![tab(Status::Done), tab(Status::NeedsInput), tab(Status::Working)],
             active_tab: 0,
         };

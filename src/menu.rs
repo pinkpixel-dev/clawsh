@@ -37,6 +37,13 @@ pub enum Choice {
     Radar,
     /// Search every saved conversation.
     Search,
+    /// The worktree picker for the active workspace's repository.
+    Worktrees,
+    /// Asks for a branch name, then adds a worktree from this folder.
+    NewWorktree(PathBuf),
+    /// Removes the worktree at `path`, running git from `repo`. `force`
+    /// throws away its uncommitted changes.
+    ConfirmRemoveWorktree { repo: PathBuf, path: PathBuf, force: bool },
     ToggleOrder,
     ToggleNotifications,
     ToggleSidebar,
@@ -157,6 +164,7 @@ impl Menu {
             Item::new("Review changes", Choice::Review).key("r"),
             Item::new("Radar", Choice::Radar).key("v"),
             Item::new("Search conversations", Choice::Search).key("/"),
+            Item::new("Worktrees", Choice::Worktrees).key("g"),
         ]);
         if tab.is_some() {
             items.push(Item::new("Copy mode", Choice::CopyMode).key("["));
@@ -223,6 +231,27 @@ impl Menu {
             ],
         );
         menu.title = Some(" close terminal? ".to_owned());
+        menu.selected = 1;
+        menu
+    }
+
+    /// Asks before removing a worktree's folder. With uncommitted changes,
+    /// the item says how many will be lost.
+    pub fn confirm_worktree(anchor: (u16, u16), repo: PathBuf, path: PathBuf, label: &str, changes: usize) -> Self {
+        let item = match changes {
+            0 => "Remove worktree".to_owned(),
+            1 => "Discard 1 change and remove".to_owned(),
+            n => format!("Discard {n} changes and remove"),
+        };
+        let force = changes > 0;
+        let mut menu = Self::new(
+            anchor,
+            vec![
+                Item::new(item, Choice::ConfirmRemoveWorktree { repo, path, force }).danger(),
+                Item::new("Cancel", Choice::Cancel),
+            ],
+        );
+        menu.title = Some(format!(" remove {}? ", short(label)));
         menu.selected = 1;
         menu
     }
@@ -302,6 +331,16 @@ mod tests {
         assert_eq!(m.choice(), Some(&Choice::Cancel));
         assert_eq!(m.items[0].label, "Close 3 tabs");
         assert_eq!(m.title.as_deref(), Some(" close p? "));
+        let clean = Menu::confirm_worktree((0, 0), "/r".into(), "/r-x".into(), "x", 0);
+        assert_eq!(clean.choice(), Some(&Choice::Cancel));
+        assert_eq!(clean.items[0].label, "Remove worktree");
+        assert_eq!(
+            clean.items[0].choice,
+            Choice::ConfirmRemoveWorktree { repo: "/r".into(), path: "/r-x".into(), force: false }
+        );
+        let dirty = Menu::confirm_worktree((0, 0), "/r".into(), "/r-x".into(), "x", 3);
+        assert_eq!(dirty.items[0].label, "Discard 3 changes and remove");
+        assert!(matches!(dirty.items[0].choice, Choice::ConfirmRemoveWorktree { force: true, .. }));
         let long = Menu::confirm_tab((0, 0), 1, &"x".repeat(40));
         assert_eq!(long.title.unwrap().chars().count(), MAX_TITLE + 9);
     }

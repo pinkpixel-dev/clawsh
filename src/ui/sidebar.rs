@@ -113,9 +113,21 @@ fn workspace_row(buf: &mut Buffer, row: Rect, view: &View, wi: usize, hits: &mut
     } else {
         (Span::raw("   "), theme::panel())
     };
-    let name = Span::styled(truncate(&ws.name, (row.width as usize).saturating_sub(5)), style);
+    let room = (row.width as usize).saturating_sub(5);
+    let name = truncate(&ws.name, room);
+    let left = room.saturating_sub(name.chars().count() + 1);
+    let mut spans = vec![marker, Span::styled(name, style)];
+    // The branch gets whatever the name leaves, when that's a few letters.
+    // Linked worktrees are marked so they stand apart from the main checkout.
+    if let Some(head) = &ws.head
+        && left >= 4
+    {
+        let label = if head.linked { format!("⎇ {}", head.label) } else { head.label.clone() };
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(truncate(&label, left), theme::faint()));
+    }
     buf.set_style(row, if active { theme::active_row() } else { theme::panel() });
-    buf.set_line(row.x, row.y, &Line::from(vec![marker, name]), row.width);
+    buf.set_line(row.x, row.y, &Line::from(spans), row.width);
     // The workspace's most urgent status, right-aligned, so a quick glance
     // at the sidebar still shows which project wants you.
     let summary = ws.status();
@@ -157,6 +169,7 @@ mod tests {
             workspaces: (0..10)
                 .map(|i| WorkspaceView {
                     name: format!("ws{i}"),
+                    head: None,
                     tabs: vec![tab("a"), tab("b")],
                     active_tab: 1,
                 })
@@ -204,6 +217,20 @@ mod tests {
         let (buf, hits) = render(&view(0, 7, true));
         assert_eq!(hits.sidebar_scroll, 0, "switching back to ws0 shows it again");
         assert!(row_text(&buf, 19).ends_with('▼'));
+    }
+
+    #[test]
+    fn branches_fill_the_room_the_name_leaves() {
+        use crate::worktree::Head;
+        let mut v = view(0, 0, true);
+        v.workspaces[0].head = Some(Head { label: "main".into(), linked: false });
+        v.workspaces[1].head = Some(Head { label: "feature/a-long-branch".into(), linked: true });
+        v.workspaces[2].name = "a-workspace-name-this-long".into();
+        v.workspaces[2].head = Some(Head { label: "main".into(), linked: false });
+        let (buf, _) = render(&v);
+        assert_eq!(row_text(&buf, 0), " ▸ ws0 main");
+        assert_eq!(row_text(&buf, 4), "   ws1 ⎇ feature/a-long…");
+        assert!(!row_text(&buf, 8).contains("main"), "no room left for the branch");
     }
 
     #[test]

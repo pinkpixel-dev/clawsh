@@ -5,9 +5,13 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::worktree::Head;
+
 pub struct Workspace<T> {
     pub name: String,
     pub path: PathBuf,
+    /// The folder's git branch, refreshed by the app now and then.
+    pub head: Option<Head>,
     pub tabs: Vec<T>,
     pub active: usize,
 }
@@ -34,6 +38,7 @@ impl<T> Workspaces<T> {
         self.list.push(Workspace {
             name: folder_name(&path),
             path,
+            head: None,
             tabs: vec![first_tab],
             active: 0,
         });

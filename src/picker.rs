@@ -1,5 +1,5 @@
 //! The fuzzy pickers: folders for a new workspace (with typed paths), saved
-//! workspace templates, prompt snippets, and the command palette.
+//! workspace templates, prompt snippets, git worktrees, and the command palette.
 
 use std::path::{Path, PathBuf};
 
@@ -12,6 +12,8 @@ pub enum Kind {
     Folders,
     Templates,
     Snippets,
+    /// The active workspace's git worktrees, plus "+ new branch".
+    Worktrees,
     /// Commands, tabs, workspaces, snippets, and templates together.
     Palette,
 }

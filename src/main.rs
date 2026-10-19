@@ -20,6 +20,7 @@ mod title;
 mod ui;
 mod usage;
 mod workspace;
+mod worktree;
 
 use anyhow::Result;
 

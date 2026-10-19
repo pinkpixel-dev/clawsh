@@ -111,6 +111,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `r` | Review what changed in this tab's folder and comment on it |
 | `v` | Radar: every tab in every workspace, whatever needs you first |
 | `/` | Search every saved conversation and resume one |
+| `g` | Git worktrees: open one, make one on a new branch, or remove one |
 | `,` | Rename the current tab |
 | `t` | Open a workspace template |
 | `T` | Save the current workspace as a template |
@@ -251,6 +252,25 @@ Each snippet is a Markdown file. The file name is the snippet's name, and the wh
 The picker lists the workspace's snippets first, then the global ones, each labeled `repo` or `global` with a preview of its first line. If both folders have a snippet with the same name, you'll see both. Blank lines at the top and the final newline are dropped, so pasting a snippet never sends it by accident. If Claude is waiting on you (a permission prompt, say), Claw$h won't paste and tells you to answer Claude first.
 
 Claude Code's own custom slash commands (`.claude/commands/`) are still the better fit for a prompt you want to run as a command. Snippets are for text you want to drop in and edit, in any tab.
+
+## Git worktrees
+
+Worktrees are the easiest way I've found to run two Claudes on the same repo without them stepping on each other. Each one gets its own folder and branch, and since a Claw$h workspace is just a folder, each worktree is its own workspace with its own tabs.
+
+Press `ctrl+b` then `g` in any workspace that's in a git repo. The picker lists every worktree of that repo, with `main` next to the main checkout and `open` next to ones you already have open. Pick one to switch to it (or open it), or pick `+ new branch` and type a branch name in the footer.
+
+New worktrees go right next to the repo, named `<repo>-<branch>` with slashes turned into dashes. So `fix/login` in `~/code/clawsh` ends up in `~/code/clawsh-fix-login`. If the branch already exists, it gets checked out there. If it doesn't, it's created from whatever the current workspace has checked out.
+
+The sidebar shows the branch next to every workspace that's in a repo, and linked worktrees get a `⎇` in front so they're easy to tell apart from the main checkout. It updates on its own when Claude (or you, in the drawer) switches branches.
+
+To remove one, select it in the picker and press `ctrl+x`. Removing is careful on purpose:
+
+- The main checkout can't be removed.
+- A worktree that's open as a workspace can't be removed. Close it first.
+- If it has uncommitted or untracked files, the confirmation says how many will be lost, and Cancel is selected by default.
+- Only the folder goes. The branch stays, so nothing you committed is lost, and picking `+ new branch` with the same name brings it back.
+
+Git does the work through `git worktree add` and `git worktree remove`, so anything git refuses (a locked worktree, a branch already checked out somewhere else) shows its error in the footer.
 
 ## Terminal drawer
 

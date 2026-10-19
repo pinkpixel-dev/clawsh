@@ -8,7 +8,7 @@ use crossterm::event::{
 use ratatui::layout::Position;
 
 use super::{App, Mode};
-use crate::picker::Picker;
+use crate::picker::{Kind, Picker};
 use crate::ui::Click;
 
 /// Sidebar rows moved per wheel tick.
@@ -38,6 +38,7 @@ pub(super) enum Action {
     Palette,
     Radar,
     Search,
+    Worktrees,
     Terminal,
     SwapFocus,
     Quit,
@@ -73,6 +74,7 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char(' ') => Action::Palette,
         KeyCode::Char('v') => Action::Radar,
         KeyCode::Char('/') => Action::Search,
+        KeyCode::Char('g') => Action::Worktrees,
         KeyCode::Char('e') => Action::Terminal,
         KeyCode::Char(';') => Action::SwapFocus,
         KeyCode::Char('q') => Action::Quit,
@@ -220,12 +222,34 @@ impl App {
                 }
                 Ok(())
             }
+            Mode::NewWorktree(dir, text) => {
+                if k.kind == KeyEventKind::Release {
+                    return Ok(());
+                }
+                match edit_line(text, &k) {
+                    LineEdit::Editing => {}
+                    LineEdit::Cancel => self.mode = Mode::Normal,
+                    // An empty name keeps the field open.
+                    LineEdit::Submit if text.trim().is_empty() => {}
+                    LineEdit::Submit => {
+                        let (dir, branch) = (dir.clone(), std::mem::take(text));
+                        self.mode = Mode::Normal;
+                        return self.add_worktree(&dir, &branch);
+                    }
+                }
+                Ok(())
+            }
             Mode::Picker(picker) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
                 }
                 let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
                 match k.code {
+                    KeyCode::Char('x') if ctrl && picker.kind == Kind::Worktrees => {
+                        if let Some(target) = picker.choice() {
+                            self.start_remove_worktree(target);
+                        }
+                    }
                     KeyCode::Esc => self.mode = Mode::Normal,
                     KeyCode::Enter => return self.open_picked(),
                     KeyCode::Up => picker.move_by(-1),
@@ -267,6 +291,7 @@ impl App {
             Action::Palette => self.open_palette(),
             Action::Radar => self.open_radar(),
             Action::Search => self.open_search(),
+            Action::Worktrees => self.open_worktree_picker(),
             Action::Terminal => {
                 if let Some(id) = self.active_id() {
                     self.toggle_terminal(id)?;
@@ -445,7 +470,10 @@ impl App {
                 }
                 Ok(())
             }
-            Mode::Rename(name) | Mode::SaveTemplate(name) | Mode::RenameWorkspace(_, name) => {
+            Mode::Rename(name)
+            | Mode::SaveTemplate(name)
+            | Mode::RenameWorkspace(_, name)
+            | Mode::NewWorktree(_, name) => {
                 for c in text.lines().next().unwrap_or("").chars() {
                     push_name_char(name, c);
                 }
@@ -511,6 +539,7 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('v'))), Some(Action::Radar));
         assert_eq!(prefix_action(&key(KeyCode::Char('/'))), Some(Action::Search));
         assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
+        assert_eq!(prefix_action(&key(KeyCode::Char('g'))), Some(Action::Worktrees));
         assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(
             prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),

@@ -20,7 +20,7 @@ pub struct FileStat {
     pub deleted: Option<u32>,
 }
 
-fn git(dir: &Path) -> Command {
+pub(crate) fn git(dir: &Path) -> Command {
     let mut cmd = Command::new("git");
     // Paths are file names, never patterns. No surprise gc in the middle of
     // a snapshot either.
@@ -30,7 +30,7 @@ fn git(dir: &Path) -> Command {
     cmd
 }
 
-fn run(cmd: &mut Command) -> Result<String> {
+pub(crate) fn run(cmd: &mut Command) -> Result<String> {
     let out = cmd.output()?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);

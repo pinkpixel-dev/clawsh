@@ -4,6 +4,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::{Click, Hits, Mode, View};
+use crate::picker::Kind;
 use crate::theme;
 
 /// Draws the footer. While a template or workspace name is being typed, it
@@ -17,6 +18,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
     let field = match view.mode {
         Mode::SaveTemplate(name) => Some(("save template as ", name)),
         Mode::RenameWorkspace(name) => Some(("rename workspace ", name)),
+        Mode::NewWorktree(name) => Some(("new worktree branch ", name)),
         _ => None,
     };
     if let Some((prompt, name)) = field {
@@ -53,6 +55,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
             (",", "rename"),
             ("t/T", "templates"),
             ("i", "snippet"),
+            ("g", "worktrees"),
             ("e", "terminal"),
             (";", "focus"),
             ("o", "menu"),
@@ -62,9 +65,13 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
             ("q", "quit"),
             ("esc", "cancel"),
         ],
+        Mode::Picker(p) if p.kind == Kind::Worktrees => {
+            &[("enter", "open"), ("ctrl+x", "remove"), ("↑↓", "move"), ("esc", "cancel")]
+        }
         Mode::Picker(_) => &[("enter", "open"), ("↑↓", "move"), ("esc", "cancel")],
         Mode::Rename(_) => &[("enter", "save"), ("empty", "auto"), ("esc", "cancel")],
         Mode::SaveTemplate(_) => &[("enter", "save"), ("esc", "cancel")],
+        Mode::NewWorktree(_) => &[("enter", "create"), ("esc", "cancel")],
         Mode::RenameWorkspace(_) => &[("enter", "save"), ("empty", "folder name"), ("esc", "cancel")],
         Mode::Menu(_) => &[("enter", "choose"), ("↑↓", "move"), ("esc", "close")],
         Mode::Radar(_) => &[("enter", "jump"), ("r", "review turn"), ("↑↓", "move"), ("esc", "close")],
