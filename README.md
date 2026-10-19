@@ -30,7 +30,7 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 
 ## Status
 
-Claw$h is at 1.0, which for me means it's what I actually use for my Claude work every day, and the pieces in this README all work. It's still a one-person project, so there are probably rough edges I haven't hit yet. If you find one, please [open an issue](https://github.com/pinkpixel-dev/clawsh/issues).
+Claw$h is at 1.2, which for me means it's what I actually use for my Claude work every day, and the pieces in this README all work. It's still a one-person project, so there are probably rough edges I haven't hit yet. If you find one, please [open an issue](https://github.com/pinkpixel-dev/clawsh/issues).
 
 It's Linux only. I haven't tried macOS, and Windows won't work. Images need kitty or Ghostty as your terminal.
 
