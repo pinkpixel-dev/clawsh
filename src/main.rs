@@ -11,6 +11,7 @@ mod shm;
 mod picker;
 mod status;
 mod theme;
+mod title;
 mod ui;
 mod usage;
 mod workspace;

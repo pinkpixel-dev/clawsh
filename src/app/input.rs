@@ -13,6 +13,8 @@ use crate::ui::Click;
 
 /// Sidebar rows moved per wheel tick.
 const SIDEBAR_WHEEL: usize = 3;
+/// Longest name `ctrl+b ,` accepts, in characters.
+const MAX_NAME: usize = 60;
 
 /// What a key after `ctrl+b` does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,6 +28,7 @@ pub(super) enum Action {
     ToggleSidebar,
     ToggleNotifications,
     CopyMode,
+    Rename,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -47,9 +50,16 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('s') => Action::ToggleSidebar,
         KeyCode::Char('m') => Action::ToggleNotifications,
         KeyCode::Char('[') => Action::CopyMode,
+        KeyCode::Char(',') => Action::Rename,
         KeyCode::Char('q') => Action::Quit,
         _ => return None,
     })
+}
+
+fn push_name_char(name: &mut String, c: char) {
+    if !c.is_control() && name.chars().count() < MAX_NAME {
+        name.push(c);
+    }
 }
 
 fn is_prefix(k: &KeyEvent) -> bool {
@@ -95,6 +105,32 @@ impl App {
                 }
                 Ok(())
             }
+            Mode::Rename(text) => {
+                if k.kind == KeyEventKind::Release {
+                    return Ok(());
+                }
+                let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
+                match k.code {
+                    KeyCode::Esc => self.mode = Mode::Normal,
+                    KeyCode::Enter => {
+                        // An empty name hands the tab back to auto-titling.
+                        let name = text.trim().to_owned();
+                        if let Some(pane) = self.spaces.active_tab_mut() {
+                            pane.name = (!name.is_empty()).then_some(name);
+                        }
+                        self.mode = Mode::Normal;
+                    }
+                    KeyCode::Backspace => {
+                        text.pop();
+                    }
+                    KeyCode::Char('u') if ctrl => text.clear(),
+                    KeyCode::Char(c) if !ctrl && !k.modifiers.contains(KeyModifiers::ALT) => {
+                        push_name_char(text, c)
+                    }
+                    _ => {}
+                }
+                Ok(())
+            }
             Mode::Picker(picker) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -135,6 +171,12 @@ impl App {
                 if let Some(pane) = self.spaces.active_tab_mut() {
                     pane.enter_copy_mode()?;
                     self.mode = Mode::Copy;
+                }
+            }
+            Action::Rename => {
+                if let Some(pane) = self.spaces.active_tab_mut() {
+                    // Start from what the tab shows now, ready to edit.
+                    self.mode = Mode::Rename(pane.title().chars().take(MAX_NAME).collect());
                 }
             }
             Action::Quit => self.quit = true,
@@ -233,6 +275,12 @@ impl App {
                 }
                 Ok(())
             }
+            Mode::Rename(name) => {
+                for c in text.lines().next().unwrap_or("").chars() {
+                    push_name_char(name, c);
+                }
+                Ok(())
+            }
             _ => match self.spaces.active_tab_mut() {
                 Some(pane) => pane.paste(text),
                 None => Ok(()),
@@ -250,6 +298,18 @@ mod tests {
     }
 
     #[test]
+    fn names_skip_control_characters_and_stop_at_the_limit() {
+        let mut name = String::new();
+        push_name_char(&mut name, 'a');
+        push_name_char(&mut name, '\x1b');
+        assert_eq!(name, "a");
+        for _ in 0..100 {
+            push_name_char(&mut name, 'b');
+        }
+        assert_eq!(name.chars().count(), MAX_NAME);
+    }
+
+    #[test]
     fn prefix_keys_map_to_actions() {
         assert_eq!(prefix_action(&key(KeyCode::Char('c'))), Some(Action::NewTab));
         assert_eq!(prefix_action(&key(KeyCode::Char('3'))), Some(Action::SelectTab(2)));
@@ -259,6 +319,7 @@ mod tests {
             Some(Action::SendPrefix)
         );
         assert_eq!(prefix_action(&key(KeyCode::Char('['))), Some(Action::CopyMode));
+        assert_eq!(prefix_action(&key(KeyCode::Char(','))), Some(Action::Rename));
         assert_eq!(prefix_action(&key(KeyCode::Esc)), None);
         assert_eq!(prefix_action(&key(KeyCode::Char('0'))), None);
     }

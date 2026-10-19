@@ -40,6 +40,8 @@ enum Mode {
     Picker(Picker),
     /// The active pane is in copy mode; keys move its cursor.
     Copy,
+    /// Typing a new name for the active tab (`ctrl+b ,`).
+    Rename(String),
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -184,7 +186,7 @@ fn build_view<'m>(
                     .tabs
                     .iter()
                     .map(|p| TabView {
-                        title: p.title().unwrap_or_else(|| "claude".into()),
+                        title: p.title(),
                         status: p.status,
                     })
                     .collect(),
@@ -196,6 +198,7 @@ fn build_view<'m>(
             Mode::Normal => ui::Mode::Normal,
             Mode::Prefix => ui::Mode::Prefix,
             Mode::Copy => ui::Mode::Copy,
+            Mode::Rename(text) => ui::Mode::Rename(text),
             Mode::Picker(p) => ui::Mode::Picker(p),
         },
     }
@@ -427,10 +430,13 @@ impl App {
                     let next = if watching { status.seen() } else { status };
                     // One notification per change; hooks often repeat a status.
                     if !watching && next != pane.status {
-                        let title = pane.title().unwrap_or_else(|| "claude".into());
-                        news = notify::message(next, &ws, &title);
+                        news = notify::message(next, &ws, &pane.title());
                     }
                     pane.status = next;
+                    // Turns ending are when a new generated title can appear.
+                    if matches!(status, Status::Done | Status::NeedsInput) {
+                        pane.refresh_transcript_title();
+                    }
                 }
                 if self.notifications
                     && let Some((title, body)) = news
@@ -447,6 +453,7 @@ impl App {
             AppEvent::Session(id, session) => {
                 if let Some(pane) = self.spaces.find_mut(|p| p.id() == id) {
                     pane.session = Some(session);
+                    pane.refresh_transcript_title();
                 }
             }
             AppEvent::Usage(report) => self.usage = Some(report),

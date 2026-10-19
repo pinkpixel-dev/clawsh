@@ -72,9 +72,16 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `s` | Hide or show the sidebar |
 | `m` | Turn desktop notifications off or back on |
 | `[` | Copy mode: select text with the keyboard, including the scrollback |
+| `,` | Rename the current tab |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
 | `esc` | Cancel |
+
+### Tab names
+
+Tabs name themselves. Claw$h uses the title Claude gives its session (without the little status glyph in front), and when there isn't one yet, it checks the session's transcript: a name you set with `/rename`, then the title Claude generated, then the first thing you typed. That last one is what keeps a tab you only ran slash commands in from being stuck as `claude` forever.
+
+If you'd rather pick the name yourself, press `ctrl+b` then `,`. The current name is filled in so you can tweak it, `Enter` saves, and `esc` cancels. A name you set sticks, even across restarts. Save an empty name to hand the tab back to auto-naming.
 
 ### Tab status
 

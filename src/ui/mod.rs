@@ -113,6 +113,8 @@ pub enum Mode<'a> {
     Prefix,
     Picker(&'a Picker),
     Copy,
+    /// The active tab's name, being edited.
+    Rename(&'a str),
 }
 
 pub struct View<'a> {
@@ -134,17 +136,17 @@ pub struct View<'a> {
 }
 
 /// Draws everything except the pane. Returns the click map and, while the
-/// picker is open, where its text cursor goes.
+/// picker or a rename is open, where its text cursor goes.
 pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Option<Position>) {
     let mut hits = Hits::default();
     if let Some(area) = areas.sidebar {
         sidebar::draw(frame, area, view, &mut hits);
     }
-    tabbar::draw(frame, areas.tabbar, view, &mut hits);
+    let rename_cursor = tabbar::draw(frame, areas.tabbar, view, &mut hits);
     footer::draw(frame, areas.footer, view);
     let cursor = match view.mode {
         Mode::Picker(p) => Some(picker::draw(frame, p, &mut hits)),
-        _ => None,
+        _ => rename_cursor,
     };
     (hits, cursor)
 }

@@ -55,6 +55,8 @@
 - Copy mode (`ctrl+b [`): move a cursor through the screen and scrollback, select with `v`, copy with `y`
 - Drag to select (copied on release) in tabs whose program doesn't use the mouse
 - Double-click copies a word and triple-click copies a line in those same tabs
+- Tabs name themselves from Claude's session title, falling back to the transcript (`/rename` name, Claude's generated title, then your first prompt)
+- `ctrl+b ,` renames the current tab; your name sticks across restarts, and an empty name goes back to auto-naming
 
 ### ⌨️ Controls
 - `ctrl+b` prefix: `c` new tab, `w` workspace, `x` close, `n`/`p` and `1`-`9` for tabs, `j`/`k` for workspaces, `s` sidebar, `q` quit, `ctrl+b` sends a literal `ctrl+b`

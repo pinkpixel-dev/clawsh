@@ -26,6 +26,7 @@ use crate::host_colors::HostColors;
 use crate::persist::SessionRef;
 use crate::status::Status;
 use crate::theme;
+use crate::title;
 
 /// One running program: its PTY, its emulator, and where it is drawn.
 pub struct Pane {
@@ -44,6 +45,10 @@ pub struct Pane {
     drag: Option<Spot>,
     /// Repeat presses, for double-click word and triple-click line.
     clicks: Clicks,
+    /// A name you gave the tab (`ctrl+b ,`). Auto-titling leaves it alone.
+    pub name: Option<String>,
+    /// The name the transcript suggests, once it has one.
+    transcript_title: Option<String>,
 }
 
 impl Pane {
@@ -73,6 +78,8 @@ impl Pane {
             copy: None,
             drag: None,
             clicks: Clicks::default(),
+            name: None,
+            transcript_title: None,
         })
     }
 
@@ -93,8 +100,25 @@ impl Pane {
         self.emu.take_host_output()
     }
 
-    pub fn title(&self) -> Option<String> {
-        self.emu.title()
+    /// What the tab is called: your name for it, then Claude's terminal
+    /// title, then whatever the transcript says, then just `claude`.
+    pub fn title(&self) -> String {
+        self.name
+            .clone()
+            .or_else(|| self.emu.title().as_deref().and_then(title::clean))
+            .or_else(|| self.transcript_title.clone())
+            .unwrap_or_else(|| "claude".into())
+    }
+
+    /// Looks for a name in the transcript, until one turns up. Claude's
+    /// generated title and your first prompt don't change once they exist.
+    pub fn refresh_transcript_title(&mut self) {
+        if self.transcript_title.is_some() {
+            return;
+        }
+        if let Some(path) = self.session.as_ref().and_then(|s| s.transcript.as_deref()) {
+            self.transcript_title = title::from_transcript(path);
+        }
     }
 
     /// Moves or resizes the pane; the program only hears about real size changes.

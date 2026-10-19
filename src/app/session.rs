@@ -22,6 +22,8 @@ impl App {
                 let args = tab.as_ref().map(|s| s.resume_args()).unwrap_or_default();
                 let mut pane = self.spawn_pane(&ws.path, &args)?;
                 pane.session = tab.clone();
+                pane.name = ws.names.get(ti).cloned().flatten();
+                pane.refresh_transcript_title();
                 if ti == 0 {
                     self.spaces.add_workspace(ws.path.clone(), pane);
                 } else {
@@ -62,7 +64,12 @@ impl App {
         let Some(path) = self.session_file.as_deref() else {
             return;
         };
-        let saved = Saved::from_spaces(&self.spaces, self.notifications, |p| p.session.clone());
+        let saved = Saved::from_spaces(
+            &self.spaces,
+            self.notifications,
+            |p| p.session.clone(),
+            |p| p.name.clone(),
+        );
         if self.last_saved.as_ref() == Some(&saved) {
             return;
         }

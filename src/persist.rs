@@ -62,6 +62,10 @@ pub struct SavedWorkspace {
     pub path: PathBuf,
     pub active: usize,
     pub tabs: Vec<Option<SessionRef>>,
+    /// Names given with `ctrl+b ,`, lined up with `tabs`. Missing in files
+    /// from before renaming existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub names: Vec<Option<String>>,
 }
 
 impl Saved {
@@ -69,6 +73,7 @@ impl Saved {
         spaces: &Workspaces<T>,
         notifications: bool,
         session: impl Fn(&T) -> Option<SessionRef>,
+        name: impl Fn(&T) -> Option<String>,
     ) -> Self {
         Self {
             version: VERSION,
@@ -81,6 +86,10 @@ impl Saved {
                     path: ws.path.clone(),
                     active: ws.active,
                     tabs: ws.tabs.iter().map(&session).collect(),
+                    names: match ws.tabs.iter().map(&name).collect::<Vec<_>>() {
+                        names if names.iter().all(Option::is_none) => Vec::new(),
+                        names => names,
+                    },
                 })
                 .collect(),
         }
@@ -156,8 +165,15 @@ mod tests {
         spaces.add_tab(2);
         spaces.add_workspace(PathBuf::from("/p/slate"), 3);
         spaces.select_tab(0, 0);
-        let saved = Saved::from_spaces(&spaces, false, |&t| SessionRef::new(&format!("s{t}"), None));
+        let saved = Saved::from_spaces(
+            &spaces,
+            false,
+            |&t| SessionRef::new(&format!("s{t}"), None),
+            |&t| (t == 2).then(|| "auth work".to_owned()),
+        );
         assert!(!saved.notifications);
+        assert_eq!(saved.workspaces[0].names, [None, Some("auth work".to_owned())]);
+        assert!(saved.workspaces[1].names.is_empty(), "no names, nothing saved");
         assert_eq!(saved.active, 0);
         assert_eq!(saved.workspaces[0].tabs.len(), 2);
         assert_eq!(saved.workspaces[1].tabs[0].as_ref().unwrap().id, "s3");
