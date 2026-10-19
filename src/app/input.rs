@@ -57,6 +57,8 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
         KeyCode::Char('[') => Action::CopyMode,
         KeyCode::Char('r') => Action::Review,
         KeyCode::Char(',') => Action::Rename,
+        // Without kitty's alternate keys, shift+t comes as `t` plus SHIFT.
+        KeyCode::Char('t') if k.modifiers.contains(KeyModifiers::SHIFT) => Action::SaveTemplate,
         KeyCode::Char('t') => Action::OpenTemplate,
         KeyCode::Char('T') => Action::SaveTemplate,
         KeyCode::Char('q') => Action::Quit,
@@ -120,7 +122,9 @@ impl App {
                 }
             }
             Mode::Prefix => {
-                if k.kind != KeyEventKind::Press {
+                // With kitty's report-all-keys flag, shift on its own arrives
+                // as a key press before the key it modifies.
+                if k.kind != KeyEventKind::Press || matches!(k.code, KeyCode::Modifier(_)) {
                     return Ok(());
                 }
                 self.mode = Mode::Normal;
@@ -395,7 +399,11 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('r'))), Some(Action::Review));
         assert_eq!(prefix_action(&key(KeyCode::Char('t'))), Some(Action::OpenTemplate));
         assert_eq!(
-            prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT)),
+            prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),
+            Some(Action::SaveTemplate)
+        );
+        assert_eq!(
+            prefix_action(&KeyEvent::new(KeyCode::Char('t'), KeyModifiers::SHIFT)),
             Some(Action::SaveTemplate)
         );
         assert_eq!(prefix_action(&key(KeyCode::Esc)), None);
