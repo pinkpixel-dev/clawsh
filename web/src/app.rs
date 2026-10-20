@@ -22,6 +22,9 @@ pub struct App {
     /// Compose mode: typing goes into a real text field and is sent as one
     /// paste. Keys mode sends every key as it's typed.
     pub compose: bool,
+    /// This device was paired watch-only. The server drops its input anyway;
+    /// this just saves sending it.
+    pub watch_only: bool,
     /// Cell size in CSS pixels, from the backend.
     pub cell: (f64, f64),
     /// The grid size Claw$h was last told about.
@@ -37,6 +40,7 @@ impl App {
             link: Link::Connecting,
             ctrl: false,
             compose: true,
+            watch_only: false,
             cell: (8.0, 17.0),
             sent_size: None,
             outbox: Vec::new(),
@@ -82,7 +86,7 @@ impl App {
     /// Input only goes out while connected; there's no point queueing keys
     /// for a screen nobody can see.
     fn send(&mut self, msg: FromPhone) {
-        if self.link == Link::Open {
+        if self.link == Link::Open && !self.watch_only {
             self.outbox.push(msg);
         }
     }

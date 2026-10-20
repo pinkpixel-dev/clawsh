@@ -52,6 +52,12 @@ pub enum Choice {
     ToggleWeb,
     /// Opens the phone access popup again.
     ShowWebLink,
+    /// Lists paired phones.
+    Devices,
+    /// A paired phone was picked from that list, by device id.
+    PickDevice(String),
+    /// Unpairs a phone, by device id.
+    RemoveDevice(String),
     Quit,
 }
 
@@ -200,6 +206,7 @@ impl Menu {
         if s.web {
             items.push(Item::new("Show phone link", Choice::ShowWebLink));
         }
+        items.push(Item::new("Paired phones", Choice::Devices));
         items.push(Item::new("Quit", Choice::Quit).key("q").divider());
         Self::new(anchor, items)
     }
@@ -243,6 +250,29 @@ impl Menu {
             ],
         );
         menu.title = Some(" close terminal? ".to_owned());
+        menu.selected = 1;
+        menu
+    }
+
+    /// Paired phones, as (device id, label). Picking one asks to remove it.
+    pub fn devices(anchor: (u16, u16), list: Vec<(String, String)>) -> Self {
+        let items = if list.is_empty() {
+            vec![Item::new("No paired phones", Choice::Cancel)]
+        } else {
+            list.into_iter().map(|(id, label)| Item::new(label, Choice::PickDevice(id))).collect()
+        };
+        let mut menu = Self::new(anchor, items);
+        menu.title = Some(" paired phones ".to_owned());
+        menu
+    }
+
+    /// Asks before unpairing a phone. It has to scan a new code to come back.
+    pub fn confirm_device(anchor: (u16, u16), id: String, name: &str) -> Self {
+        let mut menu = Self::new(
+            anchor,
+            vec![Item::new("Remove", Choice::RemoveDevice(id)).danger(), Item::new("Cancel", Choice::Cancel)],
+        );
+        menu.title = Some(format!(" remove {}? ", short(name)));
         menu.selected = 1;
         menu
     }

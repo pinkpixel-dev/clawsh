@@ -3,6 +3,8 @@
 //! frames into cell diffs. See `DOCS/WEB_ACCESS.md` for the plan.
 
 mod assets;
+mod devices;
+mod http;
 // Each side uses half of the color helpers.
 #[allow(dead_code)]
 pub mod protocol;
@@ -20,16 +22,19 @@ use ratatui::Terminal;
 
 use crate::host_colors::HostColors;
 use protocol::{CellDiff, FromPhone, Key, MouseKind, ToPhone, color_code, modifier_code};
-pub use server::{DEFAULT_ADDR, WebServer};
+pub use devices::{Device, Devices, Pairing};
+pub use server::{DEFAULT_PORT, WebServer};
 pub use tailscale::{Serve, tailnet_name};
 
 /// What the web threads tell the main loop.
 #[derive(Debug)]
 pub enum WebEvent {
-    /// A phone opened the socket; frames for it go down this sender.
-    Connected(u64, Sender<String>),
+    /// A paired phone opened the socket; frames for it go down `tx`.
+    Connected { id: u64, tx: Sender<String>, device: String, watch_only: bool },
     Message(u64, FromPhone),
     Gone(u64),
+    /// A new device paired, by its name. The code it used is gone.
+    Paired(String),
 }
 
 /// The phone's own off-screen terminal, and what it was last sent.

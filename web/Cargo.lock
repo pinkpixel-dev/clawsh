@@ -115,6 +115,7 @@ name = "clawsh-web"
 version = "0.0.0"
 dependencies = [
  "critical-section",
+ "js-sys",
  "ratatui",
  "ratzilla",
  "serde",

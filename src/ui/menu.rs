@@ -58,10 +58,13 @@ pub fn draw(frame: &mut Frame, menu: &Menu, hits: &mut Hits) {
 }
 
 /// Puts a `w` by `h` box just below `anchor`, or above it when it would run
-/// off the bottom, shifted left as needed to stay on screen.
+/// off the bottom, shifted left as needed to stay on screen. The anchor is
+/// in the desktop's cells, so on a smaller screen (the phone) it can be off
+/// the edge; it's pulled back onto the screen first.
 fn place(anchor: (u16, u16), w: u16, h: u16, screen: Rect) -> Rect {
     let w = w.min(screen.width);
     let h = h.min(screen.height);
+    let anchor = (anchor.0, anchor.1.min(screen.bottom().saturating_sub(1)));
     let x = anchor.0.min(screen.right().saturating_sub(w)).max(screen.x);
     let below = anchor.1.saturating_add(1);
     let y = if below + h <= screen.bottom() {
@@ -92,6 +95,15 @@ mod tests {
     #[test]
     fn shifts_left_at_the_right_edge() {
         assert_eq!(place((75, 0), 12, 5, SCREEN), Rect::new(68, 1, 12, 5));
+    }
+
+    #[test]
+    fn an_anchor_below_a_small_screen_stays_on_it() {
+        // Opened from row 37 at the desk, drawn on a 50 by 20 phone.
+        let phone = Rect::new(0, 0, 50, 20);
+        let r = place((0, 37), 20, 8, phone);
+        assert_eq!(r, Rect::new(0, 11, 20, 8));
+        assert!(r.bottom() <= phone.bottom());
     }
 
     #[test]

@@ -172,10 +172,15 @@ pub enum Mode<'a> {
 
 /// Phone access, while it's on.
 pub struct WebView {
-    /// The link to open on the phone, token included.
-    pub url: String,
-    /// Why it's localhost only, when Tailscale couldn't be used.
-    pub note: Option<String>,
+    /// The pairing link in the QR code; `None` once the code is used or expired.
+    pub link: Option<String>,
+    /// The same code, for typing (`K7QM-2XPV`).
+    pub code: Option<String>,
+    pub minutes_left: u64,
+    /// The code pairs a watch-only device.
+    pub watch_only: bool,
+    /// Where paired phones go.
+    pub home: String,
     /// A phone is connected right now.
     pub connected: bool,
 }

@@ -7,6 +7,7 @@ use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::{MessageEvent, WebSocket};
 
 use crate::app::{App, Link};
+use crate::pair;
 use crate::protocol::{FromPhone, ToPhone};
 
 const RETRY_MS: i32 = 1500;
@@ -21,20 +22,13 @@ pub struct Socket {
 }
 
 impl Socket {
-    /// Connects to `/ws` on the page's own host, with the token from the
-    /// page's `?t=` parameter.
+    /// Connects to `/ws` on the page's own host. The browser sends the
+    /// device cookie along with it.
     pub fn connect(app: Shared<App>) -> Self {
         let location = web_sys::window().unwrap().location();
         let scheme = if location.protocol().unwrap_or_default() == "https:" { "wss" } else { "ws" };
         let host = location.host().unwrap_or_default();
-        let search = location.search().unwrap_or_default();
-        let token = search
-            .trim_start_matches('?')
-            .split('&')
-            .find_map(|pair| pair.strip_prefix("t="))
-            .unwrap_or_default()
-            .to_owned();
-        let socket = Self { ws: Rc::new(RefCell::new(None)), app, url: format!("{scheme}://{host}/ws?t={token}") };
+        let socket = Self { ws: Rc::new(RefCell::new(None)), app, url: format!("{scheme}://{host}/ws") };
         socket.open();
         socket
     }
@@ -73,7 +67,19 @@ impl Socket {
         // An error is always followed by a close, so only close retries.
         let onclose = Closure::<dyn FnMut()>::new({
             let socket = self.clone();
-            move || socket.retry()
+            // A socket refused for not being paired looks like any other
+            // close, so ask before retrying. A removed device gets the
+            // pairing form again.
+            move || {
+                socket.app.borrow_mut().link = Link::Lost;
+                let socket = socket.clone();
+                pair::check(move |status| match status {
+                    pair::Status::NotPaired => {
+                        let _ = web_sys::window().unwrap().location().reload();
+                    }
+                    _ => socket.retry(),
+                });
+            }
         });
         ws.set_onclose(Some(onclose.as_ref().unchecked_ref()));
         onclose.forget();

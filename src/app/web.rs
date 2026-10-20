@@ -5,6 +5,7 @@
 //! `window-size latest`. The other screen sees the panes padded or cropped.
 
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -19,20 +20,19 @@ use crate::host_colors::HostColors;
 use crate::pane::Pane;
 use crate::ui::{self, Hits, View, WebView};
 use crate::web::protocol::FromPhone;
-use crate::web::{self, Capture, Serve, WebEvent, WebServer};
+use crate::web::{self, Capture, Pairing, Serve, WebEvent, WebServer};
 use crate::workspace::Workspaces;
 
 /// Phone access stops on its own after this long with no phone connected.
 const IDLE_STOP: Duration = Duration::from_secs(15 * 60);
 
 pub(super) struct Web {
-    /// Dropping it stops the server.
-    _server: WebServer,
-    /// `tailscale serve` in front of the server. Dropping it stops that too.
-    _serve: Option<Serve>,
-    url: String,
-    /// Why there's no `serve`, shown in the popup.
-    local_only: Option<String>,
+    server: WebServer,
+    /// `tailscale serve` in front of the server. Dropping it stops that.
+    _serve: Serve,
+    /// The code on screen, shared with the server, which clears it once a
+    /// phone uses it.
+    pairing: Arc<Mutex<Option<Pairing>>>,
     phone: Option<Phone>,
     /// Since when no phone has been connected; `None` while one is.
     idle_since: Option<Instant>,
@@ -42,6 +42,10 @@ pub(super) struct Web {
 struct Phone {
     id: u64,
     tx: Sender<String>,
+    /// Which paired device this is, for removing it.
+    device: String,
+    /// Sees the screen, but its input is dropped.
+    watch_only: bool,
     /// `None` until the phone says how big it is.
     capture: Option<Capture>,
     /// Click targets from the phone's last frame.
@@ -49,42 +53,66 @@ struct Phone {
 }
 
 impl App {
-    /// `ctrl+b W`: start the server, or stop it if it's running.
+    /// `ctrl+b W`: start the server, or stop it if it's running. Phone access
+    /// only works through Tailscale, so it won't start without it.
     pub(super) fn toggle_web(&mut self) -> Result<()> {
         if self.web.is_some() {
             return self.stop_web("Phone access off");
         }
-        let addr = std::env::var("CLAWSH_WEB_ADDR").unwrap_or_else(|_| web::DEFAULT_ADDR.into());
-        let tailnet = if std::env::var("CLAWSH_TAILSCALE").as_deref() == Ok("off") {
-            Err("CLAWSH_TAILSCALE is off".to_owned())
-        } else {
-            web::tailnet_name()
+        let tailnet = match web::tailnet_name() {
+            Ok(name) => name,
+            Err(why) => {
+                self.notice = Some(format!("Phone access needs Tailscale: {why}"));
+                return Ok(());
+            }
         };
-        let server = match WebServer::start(&addr, self.tx.clone(), tailnet.as_deref().ok()) {
+        let port = std::env::var("CLAWSH_WEB_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(web::DEFAULT_PORT);
+        let pairing = Arc::new(Mutex::new(None));
+        let server = match WebServer::start(port, &tailnet, self.tx.clone(), self.devices.clone(), pairing.clone()) {
             Ok(server) => server,
             Err(err) => {
                 self.notice = Some(format!("Phone access failed: {err:#}"));
                 return Ok(());
             }
         };
-        let (serve, local_only) = match tailnet.and_then(|_| Serve::start(server.port())) {
-            Ok(serve) => (Some(serve), None),
-            Err(why) => (None, Some(why)),
+        let serve = match Serve::start(server.port()) {
+            Ok(serve) => serve,
+            Err(why) => {
+                self.notice = Some(format!("Phone access needs Tailscale: {why}"));
+                return Ok(());
+            }
         };
-        let url = server.url(serve.is_some());
-        // The QR code is the easy way over, but the clipboard helps when the
-        // phone isn't the device that needs the link.
-        super::write_host(format!("\x1b]52;c;{}\x1b\\", STANDARD.encode(&url)).as_bytes())?;
-        self.web = Some(Web {
-            _server: server,
-            _serve: serve,
-            url,
-            local_only,
-            phone: None,
-            idle_since: Some(Instant::now()),
-        });
+        // Paired phones only need this, so it's handy for a bookmark.
+        super::write_host(format!("\x1b]52;c;{}\x1b\\", STANDARD.encode(server.home())).as_bytes())?;
+        self.web = Some(Web { server, _serve: serve, pairing, phone: None, idle_since: Some(Instant::now()) });
+        self.show_web_link(false)
+    }
+
+    /// Opens the popup with a fresh pairing code.
+    pub(super) fn show_web_link(&mut self, watch_only: bool) -> Result<()> {
+        let Some(web) = &self.web else {
+            return Ok(());
+        };
+        let fresh = Pairing::new(watch_only)?;
+        if let Ok(mut pairing) = web.pairing.lock() {
+            *pairing = Some(fresh);
+        }
         self.mode = Mode::WebLink;
         Ok(())
+    }
+
+    /// Keys in the popup: `r` switches watch-only, `n` makes a new code, and
+    /// anything else closes it.
+    pub(super) fn web_link_key(&mut self, c: Option<char>) -> Result<()> {
+        let watch_only = self.web_view().is_some_and(|v| v.watch_only);
+        match c {
+            Some('r') => self.show_web_link(!watch_only),
+            Some('n') => self.show_web_link(watch_only),
+            _ => {
+                self.mode = Mode::Normal;
+                Ok(())
+            }
+        }
     }
 
     fn stop_web(&mut self, why: &str) -> Result<()> {
@@ -110,11 +138,33 @@ impl App {
     /// What the footer badge and the popup show.
     pub(super) fn web_view(&self) -> Option<WebView> {
         let web = self.web.as_ref()?;
-        Some(WebView { url: web.url.clone(), note: web.local_only.clone(), connected: web.phone.is_some() })
+        let pairing = web.pairing.lock().ok();
+        let live = pairing.as_ref().and_then(|p| p.as_ref()).filter(|p| !p.expired());
+        Some(WebView {
+            link: live.map(|p| web.server.pair_link(p.code())),
+            code: live.map(|p| p.display()),
+            minutes_left: live.map_or(0, |p| p.remaining().as_secs().div_ceil(60)),
+            watch_only: pairing.as_ref().and_then(|p| p.as_ref()).is_some_and(|p| p.watch_only),
+            home: web.server.home(),
+            connected: web.phone.is_some(),
+        })
     }
 
     pub(super) fn web_running(&self) -> bool {
         self.web.is_some()
+    }
+
+    /// Drops the connected phone if it's this device, after it was removed.
+    pub(super) fn disconnect_device(&mut self, device: &str) -> Result<()> {
+        let Some(web) = &mut self.web else {
+            return Ok(());
+        };
+        if web.phone.as_ref().is_some_and(|p| p.device == device) {
+            web.phone = None;
+            web.idle_since = Some(Instant::now());
+            self.own_size(false)?;
+        }
+        Ok(())
     }
 
     pub(super) fn web_event(&mut self, ev: WebEvent) -> Result<()> {
@@ -122,9 +172,9 @@ impl App {
             return Ok(());
         };
         match ev {
-            WebEvent::Connected(id, tx) => {
+            WebEvent::Connected { id, tx, device, watch_only } => {
                 // Dropping the old sender tells its socket thread to close.
-                web.phone = Some(Phone { id, tx, capture: None, hits: Hits::default() });
+                web.phone = Some(Phone { id, tx, device, watch_only, capture: None, hits: Hits::default() });
                 web.idle_since = None;
                 if self.phone_owns_size {
                     self.phone_owns_size = false;
@@ -141,6 +191,12 @@ impl App {
                     }
                 }
             }
+            WebEvent::Paired(name) => {
+                if matches!(self.mode, Mode::WebLink) {
+                    self.mode = Mode::Normal;
+                }
+                self.notice = Some(format!("Paired {name}"));
+            }
             WebEvent::Message(id, msg) => {
                 let Some(phone) = web.phone.as_mut().filter(|p| p.id == id) else {
                     return Ok(());
@@ -152,8 +208,9 @@ impl App {
                     }
                     return Ok(());
                 }
-                // Input before the phone's first frame has nothing to aim at.
-                if phone.capture.is_none() {
+                // Input before the phone's first frame has nothing to aim
+                // at, and a watch-only phone doesn't get to send any.
+                if phone.capture.is_none() || phone.watch_only {
                     return Ok(());
                 }
                 let Some(ev) = web::to_event(msg) else {

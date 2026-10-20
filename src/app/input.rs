@@ -211,12 +211,15 @@ impl App {
             Mode::Menu(_) => self.menu_key(&k),
             Mode::Radar(_) => self.radar_key(&k),
             Mode::Search(_) => self.search_key(&k),
-            // Any key closes the popup; it's only there to be read or scanned.
             Mode::WebLink => {
-                if k.kind != KeyEventKind::Release {
-                    self.mode = Mode::Normal;
+                if k.kind == KeyEventKind::Release {
+                    return Ok(());
                 }
-                Ok(())
+                let c = match k.code {
+                    KeyCode::Char(c) if k.modifiers.difference(KeyModifiers::SHIFT).is_empty() => Some(c),
+                    _ => None,
+                };
+                self.web_link_key(c)
             }
             Mode::SaveTemplate(text) => {
                 if k.kind == KeyEventKind::Release {
@@ -464,10 +467,7 @@ impl App {
                 self.open_main_menu();
                 Ok(())
             }
-            Click::WebLink => {
-                self.mode = Mode::WebLink;
-                Ok(())
-            }
+            Click::WebLink => self.show_web_link(false),
             Click::Terminal => match self.active_id() {
                 Some(id) => self.toggle_terminal(id),
                 None => Ok(()),

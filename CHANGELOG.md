@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### 🐛 Fixes
+- Opening a menu while a phone was connected crashed Claw$h, because the phone's smaller screen didn't have the row the menu opened at. Menus now stay on whichever screen they're drawn on
+
 ### 🗂️ Tab bar
 - When the tabs don't fit, every tab except the active one shrinks to its number and status, so you can still see and click all of them. Before, the extra tabs just weren't drawn, and the active one could be among them
 - With even more tabs, the bar scrolls to keep the active tab in view, and `‹3` / `4›` show how many are hidden on each side. Click one to jump that way
@@ -13,9 +16,11 @@
 - Compose mode (the default) gives the phone a real text field, so autocorrect and dictation work. Send or Return pastes the whole prompt and presses Enter. Keys mode sends every key as you type, for menus and `ctrl+b` commands
 - The key bar is two rows that fit a phone's width, with a Compose/Keys toggle and an Enter key
 - Release binaries and the crates.io package now include the phone client
-- Starting it shows a QR code of the link, so you can just scan it with your phone
-- With Tailscale running, it also starts `tailscale serve` so your phone gets an HTTPS link that works anywhere on your tailnet. It stops along with phone access, even if Claw$h crashes. Without Tailscale it stays on `127.0.0.1` and the popup says why
-- `○ phone` in the footer shows it's on and turns into `● phone` while a phone is connected. Click it to see the QR code again
+- It runs through Tailscale: Claw$h starts `tailscale serve` with it, so your phone gets an HTTPS link that works anywhere on your tailnet, and stops it again even if Claw$h crashes. Without Tailscale it doesn't start, and the footer says why
+- Pair a phone once by scanning the QR code, or by typing the short code (`K7QM-2XPV`) into the pairing page, which is how a home-screen web app pairs. Codes last 5 minutes and work once. After that, the phone just opens the same address whenever phone access is on
+- Press `r` in the popup for a watch-only pairing that can see the screen but not type
+- Paired phones in the menu lists every phone, and removing one cuts it off right away
+- `○ phone` in the footer shows it's on and turns into `● phone` while a phone is connected. Click it for a new pairing code
 - It turns itself off after 15 minutes with no phone connected
 
 ## 1.2.1 - October 20, 2026

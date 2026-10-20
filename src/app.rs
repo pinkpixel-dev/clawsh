@@ -8,6 +8,7 @@ mod review;
 mod search;
 mod session;
 mod snippets;
+mod devices;
 mod templates;
 mod web;
 mod worktrees;
@@ -15,6 +16,7 @@ mod worktrees;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::Result;
@@ -130,6 +132,8 @@ struct App {
     screen: Rect,
     /// Phone access, while it's switched on.
     web: Option<web::Web>,
+    /// Paired phones, shared with the server while it runs.
+    devices: Arc<Mutex<crate::web::Devices>>,
     /// The phone typed last, so panes are sized for its screen.
     phone_owns_size: bool,
 }
@@ -149,6 +153,9 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         _ => None,
     };
     let usage_poller = is_claude.then(|| UsagePoller::start(tx.clone()));
+    let session_file = is_claude.then(persist::default_path).flatten();
+    // Next to the session, and only for Claude, so test runs never touch it.
+    let devices_file = session_file.as_deref().and_then(Path::parent).map(|dir| dir.join("devices.json"));
     let mut app = App {
         spaces: Workspaces::new(),
         images: ImageBridge::new(),
@@ -158,7 +165,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         status_server,
         usage_poller,
         usage: None,
-        session_file: is_claude.then(persist::default_path).flatten(),
+        session_file,
         last_saved: None,
         notifications: true,
         by_activity: false,
@@ -182,6 +189,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         cursor_style: None,
         screen,
         web: None,
+        devices: Arc::new(Mutex::new(crate::web::Devices::load(devices_file))),
         phone_owns_size: false,
     };
     let saved = app.session_file.as_deref().and_then(persist::load);

@@ -161,7 +161,10 @@ impl App {
             Choice::ToggleNotifications => self.notifications = !self.notifications,
             Choice::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             Choice::ToggleWeb => self.toggle_web()?,
-            Choice::ShowWebLink => self.mode = Mode::WebLink,
+            Choice::ShowWebLink => self.show_web_link(false)?,
+            Choice::Devices => self.open_devices_menu(),
+            Choice::PickDevice(id) => self.confirm_remove_device(&id),
+            Choice::RemoveDevice(id) => self.remove_device(&id)?,
             Choice::Quit => self.quit = true,
         }
         Ok(())

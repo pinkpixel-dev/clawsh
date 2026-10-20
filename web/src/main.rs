@@ -11,6 +11,7 @@
 
 mod app;
 mod compose;
+mod pair;
 mod socket;
 mod ui;
 
@@ -42,6 +43,18 @@ type Shared<T> = Rc<RefCell<T>>;
 const SENTINEL: &str = "  ";
 
 fn main() {
+    pair::check(|status| match status {
+        pair::Status::Paired(me) => start(me.watch_only),
+        pair::Status::NotPaired => pair::show_form(),
+        // The page itself just loaded from the server, so this is a blip.
+        // Start anyway; the socket keeps retrying.
+        pair::Status::Unreachable => start(false),
+    });
+}
+
+fn start(watch_only: bool) {
+    // Shown before the backend measures it, or the grid would be empty.
+    pair::show_app(watch_only);
     let window = web_sys::window().expect("window");
     let document = window.document().expect("document");
     let term_el = document.get_element_by_id("term").expect("#term");
@@ -55,6 +68,7 @@ fn main() {
 
     let app: Shared<App> = Rc::new(RefCell::new(App::new()));
     compose::restore(&mut app.borrow_mut());
+    app.borrow_mut().watch_only = watch_only;
     let socket = Socket::connect(app.clone());
     let terminal = Rc::new(RefCell::new(terminal));
     let resized = Rc::new(RefCell::new(false));
