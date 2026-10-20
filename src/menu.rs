@@ -49,6 +49,7 @@ pub enum Choice {
     ToggleOrder,
     ToggleNotifications,
     ToggleSidebar,
+    ToggleWeb,
     Quit,
 }
 
@@ -95,6 +96,8 @@ pub struct Settings {
     pub terminal_right: bool,
     pub notifications: bool,
     pub sidebar: bool,
+    /// Phone access is running.
+    pub web: bool,
 }
 
 pub struct Menu {
@@ -190,6 +193,7 @@ impl Menu {
             Item::new(if s.notifications { "Mute notifications" } else { "Unmute notifications" }, Choice::ToggleNotifications)
                 .key("m"),
             Item::new(if s.sidebar { "Hide sidebar" } else { "Show sidebar" }, Choice::ToggleSidebar).key("s"),
+            Item::new(if s.web { "Stop phone access" } else { "Start phone access" }, Choice::ToggleWeb).key("W"),
             Item::new("Quit", Choice::Quit).key("q").divider(),
         ]);
         Self::new(anchor, items)
@@ -304,6 +308,7 @@ mod tests {
             terminal_right: on,
             notifications: on,
             sidebar: on,
+            web: on,
         }
     }
 

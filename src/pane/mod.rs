@@ -163,20 +163,23 @@ impl Pane {
         Ok(())
     }
 
+    /// Draws into `area`, which is normally `self.area`. A second screen
+    /// with its own layout passes its own; the grid is cropped or padded.
     pub fn render(
         &mut self,
         buf: &mut Buffer,
+        area: Rect,
         remap: impl Fn(u32) -> Option<u32>,
     ) -> Result<Option<CursorState>> {
-        let cursor = self.emu.render(self.area, buf, remap)?;
+        let cursor = self.emu.render(area, buf, remap)?;
         let Some(copy) = &self.copy else {
             return Ok(cursor);
         };
         // In copy mode the program's cursor is hidden and ours is drawn as a
         // block in the accent color.
         if let Some(at) = copy.cursor_in_view(&self.emu)? {
-            let cell = Position::new(self.area.x + at.x, self.area.y + at.y);
-            if self.area.contains(cell) {
+            let cell = Position::new(area.x + at.x, area.y + at.y);
+            if area.contains(cell) {
                 let p = theme::palette();
                 buf[cell].set_style(Style::new().bg(p.accent).fg(p.surface));
             }
@@ -213,10 +216,6 @@ impl Pane {
 
     pub fn emulator_mut(&mut self) -> &mut Emulator {
         &mut self.emu
-    }
-
-    pub fn area(&self) -> Rect {
-        self.area
     }
 
     pub fn key(&mut self, ev: &KeyEvent) -> Result<()> {

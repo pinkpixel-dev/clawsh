@@ -28,4 +28,6 @@ pub enum AppEvent {
     HostScheme(ColorScheme),
     /// The host terminal's reply to OSC 10 (foreground) or 11 (background).
     HostColor(u8, RgbColor),
+    /// Something from phone access.
+    Web(crate::web::WebEvent),
 }

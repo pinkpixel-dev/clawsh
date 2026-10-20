@@ -1,4 +1,5 @@
-//! Ratzilla spike for the Claw$h phone client.
+//! The Claw$h phone client. It paints the cells Claw$h sends over a
+//! WebSocket and sends keys, taps, and scrolling back.
 //!
 //! Ratzilla only paints. Input is handled here instead of through Ratzilla's
 //! `on_key_event`/`on_mouse_event`, because those attach to a grid element the
@@ -7,13 +8,19 @@
 //! a phone keyboard can't send, and pointer events handle taps and scrolling.
 
 mod app;
+mod socket;
 mod ui;
+
+// Shared with Claw$h. Each side uses half of the color helpers.
+#[allow(dead_code)]
+#[path = "../../src/web/protocol.rs"]
+mod protocol;
 
 use std::{cell::RefCell, rc::Rc};
 
 use ratzilla::{
     DomBackend,
-    ratatui::{Terminal, TerminalOptions, Viewport, backend::Backend, layout::{Position, Rect}},
+    ratatui::{Terminal, TerminalOptions, Viewport, backend::Backend, layout::Rect},
 };
 use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::{
@@ -21,7 +28,9 @@ use web_sys::{
     KeyboardEvent, PointerEvent, WheelEvent,
 };
 
-use app::{App, Key};
+use app::App;
+use protocol::{Key, MouseKind};
+use socket::Socket;
 
 type Shared<T> = Rc<RefCell<T>>;
 
@@ -42,6 +51,7 @@ fn main() {
     terminal.resize(Rect::new(0, 0, size.columns_rows.width, size.columns_rows.height)).unwrap();
 
     let app: Shared<App> = Rc::new(RefCell::new(App::new()));
+    let socket = Socket::connect(app.clone());
     let terminal = Rc::new(RefCell::new(terminal));
     let resized = Rc::new(RefCell::new(false));
 
@@ -51,10 +61,10 @@ fn main() {
     wire_keys(&document, &sink, &app);
     wire_pointer(&term_el, &sink, &app);
 
-    render_loop(terminal, app, resized);
+    render_loop(terminal, app, socket, resized);
 }
 
-fn render_loop(terminal: Shared<Terminal<DomBackend>>, app: Shared<App>, resized: Shared<bool>) {
+fn render_loop(terminal: Shared<Terminal<DomBackend>>, app: Shared<App>, socket: Socket, resized: Shared<bool>) {
     let frame_cb: Shared<Option<Closure<dyn FnMut()>>> = Rc::new(RefCell::new(None));
     let next = frame_cb.clone();
     *frame_cb.borrow_mut() = Some(Closure::new(move || {
@@ -69,14 +79,16 @@ fn render_loop(terminal: Shared<Terminal<DomBackend>>, app: Shared<App>, resized
             terminal.resize(Rect::new(0, 0, size.columns_rows.width, size.columns_rows.height)).unwrap();
         }
         let size = terminal.backend_mut().window_size().unwrap();
+        let (cols, rows) = (size.columns_rows.width, size.columns_rows.height);
         let mut app = app.borrow_mut();
-        if size.columns_rows.width > 0 && size.columns_rows.height > 0 {
-            app.cell = (
-                size.pixels.width as f64 / size.columns_rows.width as f64,
-                size.pixels.height as f64 / size.columns_rows.height as f64,
-            );
+        if cols > 0 && rows > 0 {
+            app.cell = (size.pixels.width as f64 / cols as f64, size.pixels.height as f64 / rows as f64);
+            app.size(cols, rows);
         }
-        terminal.draw(|frame| ui::draw(frame, &mut app)).unwrap();
+        for msg in app.take_outbox() {
+            socket.send(&msg);
+        }
+        terminal.draw(|frame| ui::draw(frame, &app)).unwrap();
         sync_toggles(&app);
         request_frame(next.borrow().as_ref().unwrap());
     }));
@@ -112,13 +124,11 @@ fn wire_sink(sink: &HtmlTextAreaElement, app: &Shared<App>) {
         let app = app.clone();
         let sink = sink.clone();
         move |e: InputEvent| {
-            let mut app = app.borrow_mut();
-            let kind = e.input_type();
-            app.log(format!("beforeinput {kind} {:?}{}", e.data().unwrap_or_default(), if e.is_composing() { " (composing)" } else { "" }));
             if e.is_composing() {
                 return;
             }
-            match kind.as_str() {
+            let mut app = app.borrow_mut();
+            match e.input_type().as_str() {
                 "insertText" | "insertReplacementText" => {
                     for c in e.data().unwrap_or_default().chars() {
                         app.key(Key::Char(c));
@@ -126,6 +136,7 @@ fn wire_sink(sink: &HtmlTextAreaElement, app: &Shared<App>) {
                 }
                 "insertLineBreak" | "insertParagraph" => app.key(Key::Enter),
                 "deleteContentBackward" => app.key(Key::Backspace),
+                "deleteContentForward" => app.key(Key::Delete),
                 _ => return,
             }
             e.prevent_default();
@@ -133,19 +144,12 @@ fn wire_sink(sink: &HtmlTextAreaElement, app: &Shared<App>) {
         }
     });
 
-    listen(sink, "compositionupdate", {
-        let app = app.clone();
-        move |e: CompositionEvent| app.borrow_mut().preview = e.data().unwrap_or_default()
-    });
     listen(sink, "compositionend", {
         let app = app.clone();
         let sink = sink.clone();
         move |e: CompositionEvent| {
             let mut app = app.borrow_mut();
-            let data = e.data().unwrap_or_default();
-            app.log(format!("compositionend {data:?}"));
-            app.preview.clear();
-            for c in data.chars() {
+            for c in e.data().unwrap_or_default().chars() {
                 app.key(Key::Char(c));
             }
             reset_sink(&sink);
@@ -158,20 +162,17 @@ fn wire_sink(sink: &HtmlTextAreaElement, app: &Shared<App>) {
             let e: web_sys::ClipboardEvent = e.unchecked_into();
             let text = e.clipboard_data().and_then(|d| d.get_data("text").ok()).unwrap_or_default();
             e.prevent_default();
-            let mut app = app.borrow_mut();
-            app.log(format!("paste {} chars", text.chars().count()));
-            app.input.push_str(&text);
+            app.borrow_mut().paste(text);
         }
     });
 
     listen(sink, "keydown", {
         let app = app.clone();
         move |e: KeyboardEvent| {
-            let mut app = app.borrow_mut();
-            app.log(format!("keydown {:?} code={:?} kc={}", e.key(), e.code(), e.key_code()));
             if e.is_composing() || e.key_code() == 229 {
                 return;
             }
+            let mut app = app.borrow_mut();
             let key = e.key();
             if e.ctrl_key() && key.chars().count() == 1 {
                 app.ctrl_char(key.chars().next().unwrap());
@@ -181,12 +182,18 @@ fn wire_sink(sink: &HtmlTextAreaElement, app: &Shared<App>) {
             let special = match key.as_str() {
                 "Enter" => Key::Enter,
                 "Backspace" => Key::Backspace,
+                "Delete" => Key::Delete,
+                "Tab" if e.shift_key() => Key::BackTab,
                 "Tab" => Key::Tab,
                 "Escape" => Key::Esc,
                 "ArrowUp" => Key::Up,
                 "ArrowDown" => Key::Down,
                 "ArrowLeft" => Key::Left,
                 "ArrowRight" => Key::Right,
+                "Home" => Key::Home,
+                "End" => Key::End,
+                "PageUp" => Key::PageUp,
+                "PageDown" => Key::PageDown,
                 _ => return,
             };
             app.key(special);
@@ -209,10 +216,9 @@ fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Sha
             let button = button.clone();
             move |_: Event| {
                 let mut app = app.borrow_mut();
-                let name = button.get_attribute("data-k").unwrap_or_default();
-                match name.as_str() {
+                match button.get_attribute("data-k").unwrap_or_default().as_str() {
                     "ctrl" => app.ctrl = !app.ctrl,
-                    "prefix" => app.prefix = !app.prefix,
+                    "prefix" => app.ctrl_char('b'),
                     "esc" => app.key(Key::Esc),
                     "tab" => app.key(Key::Tab),
                     "left" => app.key(Key::Left),
@@ -225,8 +231,6 @@ fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Sha
                     }
                     _ => {}
                 }
-                app.log(format!("key bar {name} (keyboard {})", if sink_focused(&sink) { "kept" } else { "closed" }));
-
             }
         });
     }
@@ -234,27 +238,36 @@ fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Sha
 
 fn sync_toggles(app: &App) {
     let document = web_sys::window().unwrap().document().unwrap();
-    for (name, on) in [("ctrl", app.ctrl), ("prefix", app.prefix)] {
-        if let Some(el) = document.query_selector(&format!("#keys [data-k={name}]")).unwrap() {
-            el.set_attribute("aria-pressed", if on { "true" } else { "false" }).unwrap();
-        }
+    if let Some(el) = document.query_selector("#keys [data-k=ctrl]").unwrap() {
+        el.set_attribute("aria-pressed", if app.ctrl { "true" } else { "false" }).unwrap();
     }
 }
 
-/// Taps pick a tab or open the keyboard; drags scroll the pane.
+/// Taps click a cell; drags scroll whatever is under the finger.
 fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
     #[derive(Default)]
-    struct Drag { start: (f64, f64), last_y: f64, carry: f64, moved: bool, down: bool }
+    struct Drag { start: (f64, f64), cell: (u16, u16), last_y: f64, carry: f64, moved: bool, down: bool }
     let drag: Shared<Drag> = Rc::new(RefCell::new(Drag::default()));
+
+    let cell_at = {
+        let term = term.clone();
+        let app = app.clone();
+        move |x: f64, y: f64| {
+            let rect = term.get_bounding_client_rect();
+            let (w, h) = app.borrow().cell;
+            (((x - rect.left()) / w).max(0.0) as u16, ((y - rect.top()) / h).max(0.0) as u16)
+        }
+    };
 
     // Pressing the grid would blur the textarea and close the keyboard.
     listen(term, "mousedown", |e: Event| e.prevent_default());
     listen(term, "pointerdown", {
         let drag = drag.clone();
+        let cell_at = cell_at.clone();
         move |e: PointerEvent| {
             e.prevent_default();
             let (x, y) = (e.client_x() as f64, e.client_y() as f64);
-            *drag.borrow_mut() = Drag { start: (x, y), last_y: y, down: true, ..Default::default() };
+            *drag.borrow_mut() = Drag { start: (x, y), cell: cell_at(x, y), last_y: y, down: true, ..Default::default() };
         }
     });
     listen(term, "pointermove", {
@@ -275,7 +288,11 @@ fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
             let lines = (d.carry / app.cell.1).trunc();
             if lines != 0.0 {
                 d.carry -= lines * app.cell.1;
-                app.scroll_by(lines as isize);
+                // Dragging down pulls older lines into view, like a wheel up.
+                let kind = if lines > 0.0 { MouseKind::ScrollUp } else { MouseKind::ScrollDown };
+                for _ in 0..lines.abs() as u32 {
+                    app.mouse(kind, d.cell.0, d.cell.1);
+                }
             }
         }
     });
@@ -283,30 +300,32 @@ fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
         let drag = drag.clone();
         let app = app.clone();
         let sink = sink.clone();
-        let term = term.clone();
         move |e: PointerEvent| {
             let mut d = drag.borrow_mut();
             d.down = false;
             if d.moved {
                 return;
             }
-            let rect = term.get_bounding_client_rect();
+            let (col, row) = cell_at(e.client_x() as f64, e.client_y() as f64);
             let mut app = app.borrow_mut();
-            let col = ((e.client_x() as f64 - rect.left()) / app.cell.0) as u16;
-            let row = ((e.client_y() as f64 - rect.top()) / app.cell.1) as u16;
-            let hit = app.hits.iter().find(|(r, _)| r.contains(Position::new(col, row))).map(|(_, i)| *i);
-            if let Some(index) = hit {
-                app.select(index);
-            }
+            app.mouse(MouseKind::Down, col, row);
+            app.mouse(MouseKind::Up, col, row);
             sink.focus().unwrap();
-            app.log(format!("tap {} at {col},{row} -> {} (keyboard {})", e.pointer_type(), hit.map_or("pane".into(), |i| format!("tab {}", i + 1)), if sink_focused(&sink) { "up" } else { "not up" }));
         }
     });
     listen(term, "pointercancel", move |_: Event| drag.borrow_mut().down = false);
 
     listen(term, "wheel", {
         let app = app.clone();
-        move |e: WheelEvent| app.borrow_mut().scroll_by(if e.delta_y() > 0.0 { -3 } else { 3 })
+        let term = term.clone();
+        move |e: WheelEvent| {
+            let rect = term.get_bounding_client_rect();
+            let mut app = app.borrow_mut();
+            let (w, h) = app.cell;
+            let (col, row) = (((e.client_x() as f64 - rect.left()) / w) as u16, ((e.client_y() as f64 - rect.top()) / h) as u16);
+            let kind = if e.delta_y() > 0.0 { MouseKind::ScrollDown } else { MouseKind::ScrollUp };
+            app.mouse(kind, col, row);
+        }
     });
 }
 

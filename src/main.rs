@@ -20,6 +20,7 @@ mod theme;
 mod title;
 mod ui;
 mod usage;
+mod web;
 mod workspace;
 mod worktree;
 

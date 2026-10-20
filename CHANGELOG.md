@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### 📱 Phone access (early)
+- `ctrl+b W` (or Start phone access in the main menu) starts a small server inside the running Claw$h and copies a link with a one-time token. Pressing it again stops it
+- The phone client in `web/` shows the same session at the phone's own size and sends keys, taps, scrolling, and pastes back
+- Whichever screen typed last sets the pane size, so Claude reflows when you switch between the phone and the desk
+- It only listens on `127.0.0.1` for now; Tailscale and QR pairing come later
+
 ## 1.2.1 - October 20, 2026
 
 ### 🐛 Fixes

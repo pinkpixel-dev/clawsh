@@ -3,11 +3,13 @@ mod input;
 mod menu;
 mod palette;
 mod radar;
+mod render;
 mod review;
 mod search;
 mod session;
 mod snippets;
 mod templates;
+mod web;
 mod worktrees;
 
 use std::io::{self, Write};
@@ -16,7 +18,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::Result;
-use crossterm::event::Event;
+use crossterm::event::{Event, MouseEventKind};
 use ratatui::DefaultTerminal;
 use ratatui::layout::Rect;
 
@@ -32,8 +34,9 @@ use crate::picker::Picker;
 use crate::search::Search;
 use crate::status::{self, Status, StatusServer};
 use crate::theme;
-use crate::ui::drawer::{DEFAULT_PERCENT, DividerView, Side};
+use crate::ui::drawer::{DEFAULT_PERCENT, Side};
 use crate::ui::{self, Hits, TabView, View, WorkspaceView};
+use render::Screen;
 use crate::usage::{Report, UsagePoller};
 use crate::workspace::Workspaces;
 
@@ -121,6 +124,12 @@ struct App {
     notice: Option<String>,
     quit: bool,
     cursor_style: Option<CursorState>,
+    /// The desktop terminal's size at the last draw.
+    screen: Rect,
+    /// Phone access, while it's switched on.
+    web: Option<web::Web>,
+    /// The phone typed last, so panes are sized for its screen.
+    phone_owns_size: bool,
 }
 
 pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Result<()> {
@@ -128,7 +137,8 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
     crate::input::spawn_reader(tx.clone());
 
     let show_sidebar = true;
-    let areas = ui::layout(term.size()?.into(), show_sidebar);
+    let screen: Rect = term.size()?.into();
+    let areas = ui::layout(screen, show_sidebar);
     // Without the socket, tabs still work; they just have no status.
     let status_server = StatusServer::start(tx.clone()).ok();
     let is_claude = Path::new(&launch.program).file_name().is_some_and(|n| n == "claude");
@@ -168,6 +178,9 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
         notice: None,
         quit: false,
         cursor_style: None,
+        screen,
+        web: None,
+        phone_owns_size: false,
     };
     let saved = app.session_file.as_deref().and_then(persist::load);
     if let Some(saved) = &saved {
@@ -408,9 +421,10 @@ impl App {
         self.refocus(before)
     }
 
-    fn draw(&mut self, term: &mut DefaultTerminal) -> Result<()> {
-        let areas = ui::layout(term.size()?.into(), self.show_sidebar);
-        self.pane_area = areas.pane;
+    /// Sizes every pane for whichever screen typed last.
+    fn layout_panes(&mut self) -> Result<()> {
+        let screen = self.phone_screen().filter(|_| self.phone_owns_size).unwrap_or(self.screen);
+        self.pane_area = ui::layout(screen, self.show_sidebar).pane;
         let split = self.drawer_split();
         // Hidden panes keep the same size, so switching tabs never reflows.
         // Only showing or hiding a tab's own drawer resizes its Claude.
@@ -424,13 +438,20 @@ impl App {
             let shown = pane.drawer.as_ref().is_some_and(|d| d.shown);
             let main = match split {
                 Some(s) if shown => s.main,
-                _ => areas.pane,
+                _ => self.pane_area,
             };
             pane.set_area(main, self.cell)?;
             if let (Some(d), Some(s)) = (&mut pane.drawer, split) {
                 d.pane.set_area(s.drawer, self.cell)?;
             }
         }
+        Ok(())
+    }
+
+    fn draw(&mut self, term: &mut DefaultTerminal) -> Result<()> {
+        self.screen = term.size()?.into();
+        self.layout_panes()?;
+        let areas = ui::layout(self.screen, self.show_sidebar);
 
         // Images have to exist on the host before the cells that show them.
         let reviewing = matches!(self.mode, Mode::Review);
@@ -446,16 +467,6 @@ impl App {
             }
         }
         write_host(&out)?;
-        let tab_drawer = self.spaces.active_tab().and_then(|p| p.drawer.as_ref());
-        let terminal = tab_drawer.map(|d| d.shown);
-        let divider = match (tab_drawer, split) {
-            (Some(d), Some(s)) if d.shown => Some(DividerView {
-                rect: s.divider,
-                side: self.drawer_side,
-                focused: d.focused,
-            }),
-            _ => None,
-        };
 
         let frame = (self.started.elapsed().as_millis() / SPINNER_TICK.as_millis()) as usize;
         // Scroll the sidebar to the active tab only when it changes, so the
@@ -472,56 +483,30 @@ impl App {
             (self.notifications, self.by_activity),
             self.notice.as_deref(),
         );
-        (view.terminal, view.divider) = (terminal, divider);
         let images = &self.images;
         let spaces = &mut self.spaces;
         let normal = matches!(self.mode, Mode::Normal);
-        let mut hits = Hits::default();
-        let mut pane_cursor = Ok(None);
-        let mut review_cursor = None;
+        let screen = Screen {
+            areas: &areas,
+            side: self.drawer_side,
+            percent: self.drawer_percent,
+            reviewing,
+            normal,
+        };
+        let mut drawn = None;
         term.draw(|frame| {
-            if let Some(pane) = spaces.active_tab_mut() {
-                let area = pane.area();
-                let main_cursor = if reviewing && let Some(review) = pane.review.as_mut() {
-                    review_cursor = ui::review::draw(frame, area, review);
-                    Ok(None)
-                } else {
-                    let id = pane.id();
-                    pane.render(frame.buffer_mut(), |img| images.remap(id, img))
-                        .map(|c| c.map(|c| (c, area)))
-                };
-                // The cursor belongs to whichever pane has the keyboard.
-                pane_cursor = match pane.drawer.as_mut().filter(|d| d.shown) {
-                    Some(d) => {
-                        let (id, area) = (d.pane.id(), d.pane.area());
-                        let drawer_cursor = d
-                            .pane
-                            .render(frame.buffer_mut(), |img| images.remap(id, img))
-                            .map(|c| c.map(|c| (c, area)));
-                        if d.focused { drawer_cursor } else { main_cursor }
-                    }
-                    None => main_cursor,
-                };
-            }
-            let (chrome_hits, picker_cursor) = ui::draw_chrome(frame, &areas, &view);
-            hits = chrome_hits;
-            if let Some(pos) = picker_cursor.or(review_cursor) {
-                frame.set_cursor_position(pos);
-            } else if let Ok(Some((c, area))) = &pane_cursor
-                && normal
-            {
-                frame.set_cursor_position((area.x + c.position.x, area.y + c.position.y));
-            }
+            drawn = Some(render::render(frame, spaces, &mut view, &screen, &|id, img| images.remap(id, img)));
         })?;
-        self.sidebar_scroll = hits.sidebar_scroll;
-        self.hits = hits;
+        let drawn = drawn.expect("draw runs the closure")?;
+        self.sidebar_scroll = drawn.hits.sidebar_scroll;
+        self.hits = drawn.hits;
 
         // Old animation frames go only once the new cells are on screen.
         let mut out = Vec::new();
         self.images.after_draw(&mut out);
         write_host(&out)?;
 
-        if let Some((c, _)) = pane_cursor?
+        if let Some(c) = drawn.pane_cursor
             && self
                 .cursor_style
                 .is_none_or(|old| (old.style, old.blinking) != (c.style, c.blinking))
@@ -529,7 +514,20 @@ impl App {
             host::apply_cursor_style(&c)?;
             self.cursor_style = Some(c);
         }
-        Ok(())
+
+        web::draw_phone(
+            self.web.as_mut(),
+            web::PhoneDraw {
+                spaces: &mut self.spaces,
+                view: &mut view,
+                show_sidebar: self.show_sidebar,
+                side: self.drawer_side,
+                percent: self.drawer_percent,
+                reviewing,
+                normal,
+                colors: self.colors,
+            },
+        )
     }
 
     /// Blocks for the next event, then drains whatever else is queued so a
@@ -643,7 +641,27 @@ impl App {
                     }
                 }
             }
-            AppEvent::Input(input) => match input {
+            AppEvent::Web(ev) => self.web_event(ev)?,
+            AppEvent::Input(input) => {
+                // Typing or clicking at the desk takes the pane size back from
+                // the phone. Plain mouse movement doesn't count.
+                let claims = match &input {
+                    Event::Key(_) | Event::Paste(_) => true,
+                    Event::Mouse(m) => m.kind != MouseEventKind::Moved,
+                    _ => false,
+                };
+                if claims {
+                    self.own_size(false)?;
+                }
+                self.input(input)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Input from either screen, after the size owner is settled.
+    fn input(&mut self, input: Event) -> Result<()> {
+        match input {
                 Event::Key(k) => self.key(k)?,
                 Event::Mouse(m) => self.mouse(m)?,
                 Event::Paste(text) => self.paste(&text)?,
@@ -655,7 +673,6 @@ impl App {
                     }
                 }
                 Event::Resize(..) => self.cell = CellPx::query(),
-            },
         }
         Ok(())
     }

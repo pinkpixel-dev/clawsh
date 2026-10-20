@@ -42,6 +42,7 @@ pub(super) enum Action {
     Files,
     Terminal,
     SwapFocus,
+    ToggleWeb,
     Quit,
     /// `ctrl+b ctrl+b` sends a literal `ctrl+b` to the pane.
     SendPrefix,
@@ -53,6 +54,9 @@ pub(super) fn prefix_action(k: &KeyEvent) -> Option<Action> {
     }
     Some(match k.code {
         KeyCode::Char('c') => Action::NewTab,
+        // Same as shift+t below: without kitty's alternate keys, shift+w is `w` plus SHIFT.
+        KeyCode::Char('w') if k.modifiers.contains(KeyModifiers::SHIFT) => Action::ToggleWeb,
+        KeyCode::Char('W') => Action::ToggleWeb,
         KeyCode::Char('w') => Action::NewWorkspace,
         KeyCode::Char('x') => Action::CloseTab,
         KeyCode::Char('n') | KeyCode::Right => Action::CycleTab(1),
@@ -301,6 +305,7 @@ impl App {
                 }
             }
             Action::SwapFocus => self.swap_focus()?,
+            Action::ToggleWeb => self.toggle_web()?,
             Action::Quit => self.quit = true,
             Action::SendPrefix => {
                 if let Some(pane) = self.focused_pane_mut() {
@@ -544,6 +549,12 @@ mod tests {
         assert_eq!(prefix_action(&key(KeyCode::Char('e'))), Some(Action::Terminal));
         assert_eq!(prefix_action(&key(KeyCode::Char('g'))), Some(Action::Worktrees));
         assert_eq!(prefix_action(&key(KeyCode::Char('f'))), Some(Action::Files));
+        assert_eq!(prefix_action(&key(KeyCode::Char('W'))), Some(Action::ToggleWeb));
+        assert_eq!(
+            prefix_action(&KeyEvent::new(KeyCode::Char('w'), KeyModifiers::SHIFT)),
+            Some(Action::ToggleWeb)
+        );
+        assert_eq!(prefix_action(&key(KeyCode::Char('w'))), Some(Action::NewWorkspace));
         assert_eq!(prefix_action(&key(KeyCode::Char(';'))), Some(Action::SwapFocus));
         assert_eq!(
             prefix_action(&KeyEvent::new(KeyCode::Char('T'), KeyModifiers::NONE)),

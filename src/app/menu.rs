@@ -26,6 +26,7 @@ impl App {
             terminal_right: self.drawer_side == Side::Right,
             notifications: self.notifications,
             sidebar: self.show_sidebar,
+            web: self.web_running(),
         };
         let workspace = self.spaces.current().map(|ws| ws.path.clone());
         let tab = self.spaces.active_tab().map(|t| (t.id(), t.drawer.as_ref().map(|d| d.shown)));
@@ -159,6 +160,7 @@ impl App {
             Choice::ToggleOrder => self.by_activity = !self.by_activity,
             Choice::ToggleNotifications => self.notifications = !self.notifications,
             Choice::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
+            Choice::ToggleWeb => self.toggle_web()?,
             Choice::Quit => self.quit = true,
         }
         Ok(())
