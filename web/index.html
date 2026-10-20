@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#17181a" />
+  <title>Claw$h web spike</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link data-trunk rel="rust" />
+  <style>
+    :root { --bg: #17181a; --fg: #ededed; --accent: #f92571; --line: #2a2c30; --key: #212327; --key-active: #2c2f34; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; overscroll-behavior: none; }
+    #app { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; display: flex; flex-direction: column; }
+    #term { flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; font-family: "JetBrains Mono", monospace; font-size: 14px; }
+    #term pre { font-family: inherit; margin: 0; }
+    #keys { display: flex; gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); overflow-x: auto; border-top: 1px solid var(--line); scrollbar-width: none; }
+    #keys button { flex: 0 0 auto; min-width: 44px; height: 40px; padding: 0 10px; font: 600 13px "JetBrains Mono", monospace; color: var(--fg); background: var(--key); border: 1px solid var(--line); border-radius: 8px; transition: background-color 120ms ease, border-color 120ms ease; }
+    #keys button:active { background: var(--key-active); }
+    #keys button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+    #keys button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    #sink { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="term"></div>
+    <div id="keys" role="toolbar" aria-label="Terminal keys">
+      <button data-k="ctrl" aria-pressed="false" title="Sticky ctrl">ctrl</button>
+      <button data-k="prefix" aria-pressed="false" title="Claw$h prefix (ctrl+b)">^B</button>
+      <button data-k="esc" title="Escape">esc</button>
+      <button data-k="tab" title="Tab">tab</button>
+      <button data-k="left" aria-label="Left" title="Left">&larr;</button>
+      <button data-k="up" aria-label="Up" title="Up">&uarr;</button>
+      <button data-k="down" aria-label="Down" title="Down">&darr;</button>
+      <button data-k="right" aria-label="Right" title="Right">&rarr;</button>
+      <button data-k="ctrlc" title="Interrupt (ctrl+c)">^C</button>
+      <button data-k="kbd" title="Show or hide the keyboard">kbd</button>
+    </div>
+  </div>
+  <textarea id="sink" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Terminal input"></textarea>
+  <script>
+    // Ratzilla measures cells when it builds the grid; re-measure once the web font is in.
+    document.fonts.ready.then(() => window.dispatchEvent(new Event("resize")));
+  </script>
+</body>
+</html>
