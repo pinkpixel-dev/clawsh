@@ -1,13 +1,14 @@
-//! The built phone client from `web/dist`. Debug builds read the folder from
-//! disk on every request, so a `trunk build` shows up without rebuilding
-//! Claw$h. Release builds carry the files inside the binary.
+//! The built phone client in `web-dist`, which trunk builds from `web/`.
+//! Debug builds read the folder from disk on every request, so a `trunk build`
+//! shows up without rebuilding Claw$h. Release builds carry the files inside
+//! the binary.
 
 use std::borrow::Cow;
 
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "web/dist"]
+#[folder = "web-dist"]
 #[allow_missing = true]
 struct Dist;
 

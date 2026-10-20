@@ -10,13 +10,25 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link data-trunk rel="rust" />
   <style>
-    :root { --bg: #17181a; --fg: #ededed; --accent: #f92571; --line: #2a2c30; --key: #212327; --key-active: #2c2f34; }
+    :root { --bg: #17181a; --fg: #ededed; --dim: #8a8d93; --accent: #f92571; --line: #2a2c30; --key: #212327; --key-active: #2c2f34; --field: #1d1f22; }
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; overscroll-behavior: none; }
     #app { position: fixed; top: 0; left: 0; right: 0; height: 100dvh; display: flex; flex-direction: column; }
     #term { flex: 1; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; font-family: "JetBrains Mono", monospace; font-size: 14px; }
     #term pre { font-family: inherit; margin: 0; }
-    #keys { display: flex; gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); overflow-x: auto; border-top: 1px solid var(--line); scrollbar-width: none; }
-    #keys button { flex: 0 0 auto; min-width: 44px; height: 40px; padding: 0 10px; font: 600 13px "JetBrains Mono", monospace; color: var(--fg); background: var(--key); border: 1px solid var(--line); border-radius: 8px; transition: background-color 120ms ease, border-color 120ms ease; }
+
+    #compose { display: flex; align-items: flex-end; gap: 6px; padding: 6px 8px 0; border-top: 1px solid var(--line); }
+    #app[data-mode="keys"] #compose { display: none; }
+    #draft { flex: 1; min-width: 0; box-sizing: border-box; min-height: 40px; max-height: 112px; padding: 9px 10px; resize: none; font: 16px/1.35 "JetBrains Mono", monospace; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 8px; transition: border-color 120ms ease; }
+    #draft::placeholder { color: var(--dim); }
+    #draft:focus-visible { outline: none; border-color: var(--accent); }
+    #send { flex: 0 0 auto; height: 40px; padding: 0 14px; font: 600 13px "JetBrains Mono", monospace; color: var(--bg); background: var(--accent); border: 0; border-radius: 8px; transition: opacity 120ms ease; }
+    #send:active { opacity: 0.8; }
+    #send:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    #send:disabled { opacity: 0.45; }
+
+    #keys { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+    #compose + #keys { border-top: 0; }
+    #keys button { min-width: 0; height: 40px; padding: 0; font: 600 13px "JetBrains Mono", monospace; color: var(--fg); background: var(--key); border: 1px solid var(--line); border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color 120ms ease, border-color 120ms ease; }
     #keys button:active { background: var(--key-active); }
     #keys button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
     #keys button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -24,18 +36,24 @@
   </style>
 </head>
 <body>
-  <div id="app">
+  <div id="app" data-mode="compose">
     <div id="term"></div>
+    <div id="compose">
+      <textarea id="draft" rows="1" placeholder="Message Claude" enterkeyhint="send" autocapitalize="sentences" autocomplete="on" autocorrect="on" spellcheck="true" aria-label="Message"></textarea>
+      <button id="send" title="Send (Enter)">Send</button>
+    </div>
     <div id="keys" role="toolbar" aria-label="Terminal keys">
-      <button data-k="ctrl" aria-pressed="false" title="Sticky ctrl">ctrl</button>
+      <button data-k="mode" aria-pressed="false" title="Switch between Compose and Keys">Keys</button>
+      <button data-k="ctrl" aria-pressed="false" title="Sticky ctrl for the next key">ctrl</button>
       <button data-k="prefix" title="Claw$h prefix (ctrl+b)">^B</button>
       <button data-k="esc" title="Escape">esc</button>
       <button data-k="tab" title="Tab">tab</button>
+      <button data-k="ctrlc" title="Interrupt (ctrl+c)">^C</button>
       <button data-k="left" aria-label="Left" title="Left">&larr;</button>
       <button data-k="up" aria-label="Up" title="Up">&uarr;</button>
       <button data-k="down" aria-label="Down" title="Down">&darr;</button>
       <button data-k="right" aria-label="Right" title="Right">&rarr;</button>
-      <button data-k="ctrlc" title="Interrupt (ctrl+c)">^C</button>
+      <button data-k="enter" aria-label="Enter" title="Enter">&#9166;</button>
       <button data-k="kbd" title="Show or hide the keyboard">kbd</button>
     </div>
   </div>

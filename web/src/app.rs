@@ -19,6 +19,9 @@ pub struct App {
     pub link: Link,
     /// Sticky ctrl from the key bar: applies to the next key.
     pub ctrl: bool,
+    /// Compose mode: typing goes into a real text field and is sent as one
+    /// paste. Keys mode sends every key as it's typed.
+    pub compose: bool,
     /// Cell size in CSS pixels, from the backend.
     pub cell: (f64, f64),
     /// The grid size Claw$h was last told about.
@@ -33,6 +36,7 @@ impl App {
             cursor: None,
             link: Link::Connecting,
             ctrl: false,
+            compose: true,
             cell: (8.0, 17.0),
             sent_size: None,
             outbox: Vec::new(),
@@ -51,6 +55,16 @@ impl App {
 
     pub fn paste(&mut self, text: String) {
         self.send(FromPhone::Paste { text });
+    }
+
+    /// Sends a composed prompt as one paste, then Enter. An empty one is
+    /// just Enter, which is handy for confirming things.
+    pub fn submit(&mut self, text: &str) {
+        self.ctrl = false;
+        if !text.trim().is_empty() {
+            self.paste(text.to_owned());
+        }
+        self.key(Key::Enter);
     }
 
     pub fn mouse(&mut self, kind: MouseKind, x: u16, y: u16) {

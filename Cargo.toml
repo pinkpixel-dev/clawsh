@@ -9,7 +9,19 @@ homepage = "https://github.com/pinkpixel-dev/clawsh"
 readme = "README.md"
 keywords = ["claude", "tui", "terminal", "ratatui", "multiplexer"]
 categories = ["command-line-utilities"]
-exclude = ["/scripts", "/.github"]
+# `web-dist` is gitignored, so it only gets packaged because it's listed
+# here. Build it first (scripts/publish.sh does).
+include = [
+  "/src/**",
+  "/web-dist/**",
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/icon.png",
+  "/screenshot.png",
+]
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/clawsh-{ target }.tar.gz"

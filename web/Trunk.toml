@@ -1,0 +1,4 @@
+# Build into the repo root, outside this package. Cargo skips folders that are
+# their own package, so web/dist could never ship in the clawsh-tui crate.
+[build]
+dist = "../web-dist"

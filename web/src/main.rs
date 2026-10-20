@@ -4,10 +4,13 @@
 //! Ratzilla only paints. Input is handled here instead of through Ratzilla's
 //! `on_key_event`/`on_mouse_event`, because those attach to a grid element the
 //! DOM backend rebuilds on every resize, and a focusable div doesn't bring up
-//! a phone keyboard. A hidden textarea catches typing, the key bar covers what
-//! a phone keyboard can't send, and pointer events handle taps and scrolling.
+//! a phone keyboard. Compose mode types into a real text field
+//! (`compose.rs`), Keys mode into a hidden textarea that sends every key, the
+//! key bar covers what a phone keyboard can't send, and pointer events handle
+//! taps and scrolling.
 
 mod app;
+mod compose;
 mod socket;
 mod ui;
 
@@ -51,6 +54,7 @@ fn main() {
     terminal.resize(Rect::new(0, 0, size.columns_rows.width, size.columns_rows.height)).unwrap();
 
     let app: Shared<App> = Rc::new(RefCell::new(App::new()));
+    compose::restore(&mut app.borrow_mut());
     let socket = Socket::connect(app.clone());
     let terminal = Rc::new(RefCell::new(terminal));
     let resized = Rc::new(RefCell::new(false));
@@ -58,8 +62,9 @@ fn main() {
     listen(&window, "resize", { let resized = resized.clone(); move |_: Event| *resized.borrow_mut() = true });
     wire_viewport(&window);
     wire_sink(&sink, &app);
-    wire_keys(&document, &sink, &app);
-    wire_pointer(&term_el, &sink, &app);
+    wire_keys(&document, &app);
+    compose::wire(&app);
+    wire_pointer(&term_el, &app);
 
     render_loop(terminal, app, socket, resized);
 }
@@ -202,7 +207,7 @@ fn wire_sink(sink: &HtmlTextAreaElement, app: &Shared<App>) {
     });
 }
 
-fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Shared<App>) {
+fn wire_keys(document: &web_sys::Document, app: &Shared<App>) {
     let buttons = document.query_selector_all("#keys button").unwrap();
     for i in 0..buttons.length() {
         let button: Element = buttons.item(i).unwrap().dyn_into().unwrap();
@@ -212,11 +217,14 @@ fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Sha
         }
         listen(&button, "click", {
             let app = app.clone();
-            let sink = sink.clone();
             let button = button.clone();
             move |_: Event| {
                 let mut app = app.borrow_mut();
                 match button.get_attribute("data-k").unwrap_or_default().as_str() {
+                    "mode" => {
+                        let compose = !app.compose;
+                        compose::set_mode(&mut app, compose);
+                    }
                     "ctrl" => app.ctrl = !app.ctrl,
                     "prefix" => app.ctrl_char('b'),
                     "esc" => app.key(Key::Esc),
@@ -226,8 +234,10 @@ fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Sha
                     "down" => app.key(Key::Down),
                     "right" => app.key(Key::Right),
                     "ctrlc" => app.ctrl_char('c'),
+                    "enter" => app.key(Key::Enter),
                     "kbd" => {
-                        if sink_focused(&sink) { sink.blur().unwrap() } else { sink.focus().unwrap() }
+                        let input = compose::input(&app);
+                        if compose::focused(&input) { input.blur().unwrap() } else { input.focus().unwrap() }
                     }
                     _ => {}
                 }
@@ -238,13 +248,15 @@ fn wire_keys(document: &web_sys::Document, sink: &HtmlTextAreaElement, app: &Sha
 
 fn sync_toggles(app: &App) {
     let document = web_sys::window().unwrap().document().unwrap();
-    if let Some(el) = document.query_selector("#keys [data-k=ctrl]").unwrap() {
-        el.set_attribute("aria-pressed", if app.ctrl { "true" } else { "false" }).unwrap();
+    for (name, on) in [("ctrl", app.ctrl), ("mode", !app.compose)] {
+        if let Some(el) = document.query_selector(&format!("#keys [data-k={name}]")).unwrap() {
+            el.set_attribute("aria-pressed", if on { "true" } else { "false" }).unwrap();
+        }
     }
 }
 
 /// Taps click a cell; drags scroll whatever is under the finger.
-fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
+fn wire_pointer(term: &Element, app: &Shared<App>) {
     #[derive(Default)]
     struct Drag { start: (f64, f64), cell: (u16, u16), last_y: f64, carry: f64, moved: bool, down: bool }
     let drag: Shared<Drag> = Rc::new(RefCell::new(Drag::default()));
@@ -299,7 +311,6 @@ fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
     listen(term, "pointerup", {
         let drag = drag.clone();
         let app = app.clone();
-        let sink = sink.clone();
         move |e: PointerEvent| {
             let mut d = drag.borrow_mut();
             d.down = false;
@@ -310,7 +321,7 @@ fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
             let mut app = app.borrow_mut();
             app.mouse(MouseKind::Down, col, row);
             app.mouse(MouseKind::Up, col, row);
-            sink.focus().unwrap();
+            compose::input(&app).focus().unwrap();
         }
     });
     listen(term, "pointercancel", move |_: Event| drag.borrow_mut().down = false);
@@ -327,11 +338,6 @@ fn wire_pointer(term: &Element, sink: &HtmlTextAreaElement, app: &Shared<App>) {
             app.mouse(kind, col, row);
         }
     });
-}
-
-fn sink_focused(sink: &HtmlTextAreaElement) -> bool {
-    let active = web_sys::window().unwrap().document().unwrap().active_element();
-    active.is_some_and(|el| el == ***sink)
 }
 
 fn reset_sink(sink: &HtmlTextAreaElement) {

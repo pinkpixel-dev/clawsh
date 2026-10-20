@@ -10,7 +10,31 @@ permissions:
   contents: write
 
 jobs:
+  # The phone client is wasm, so it's the same for every target. Build it once
+  # and hand it to each build job, which embeds it in the binary.
+  web:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@0.21.14
+      - name: Build the phone client
+        working-directory: web
+        run: trunk build --release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web-dist
+
   build:
+    needs: web
     strategy:
       fail-fast: false
       matrix:
@@ -30,6 +54,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: web-dist
+      # Without it the binary still builds, just with no phone client.
+      - name: Check the phone client is there
+        run: test -f web-dist/index.html
 
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }}
