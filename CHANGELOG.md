@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 - October 20, 2026
 
 ### 🐛 Fixes
 - Opening a menu while a phone was connected crashed Claw$h, because the phone's smaller screen didn't have the row the menu opened at. Menus now stay on whichever screen they're drawn on
@@ -11,7 +11,7 @@
 - With even more tabs, the bar scrolls to keep the active tab in view, and `‹3` / `4›` show how many are hidden on each side. Click one to jump that way
 
 ### 📱 Phone access (early)
-- `ctrl+b W` (or Start phone access in the main menu) starts a small server inside the running Claw$h and copies a link with a one-time token. Pressing it again stops it
+- `ctrl+b W` (or Start phone access in the main menu) starts a small server inside the running Claw$h, copies its address, and opens a pairing popup. Pressing it again stops it
 - The phone client in `web/` shows the same session at the phone's own size and sends keys, taps, scrolling, and pastes back
 - Whichever screen typed last sets the pane size, so Claude reflows when you switch between the phone and the desk
 - Compose mode (the default) gives the phone a real text field, so autocorrect and dictation work. Send or Return pastes the whole prompt and presses Enter. Keys mode sends every key as you type, for menus and `ctrl+b` commands

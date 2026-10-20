@@ -27,10 +27,11 @@ The command is `clawsh` (the `$` only lives in the name, since shells would read
 - **[Copy mode](#copying-from-claude)** with scrollback, and Claude's own copies reach your real clipboard.
 - **Images.** Kitty graphics from Claude and its mods show up in kitty and Ghostty, animated ones included.
 - **[Light and dark](#light-and-dark-terminals).** Claw$h and Claude both follow your terminal's theme.
+- **[Phone access](#phone-access).** Open the same live session on your phone over Tailscale, with a text field that keeps autocorrect and dictation working.
 
 ## Status
 
-Claw$h is at 1.2, which for me means it's what I actually use for my Claude work every day, and the pieces in this README all work. It's still a one-person project, so there are probably rough edges I haven't hit yet. If you find one, please [open an issue](https://github.com/pinkpixel-dev/clawsh/issues).
+Claw$h is at 1.3, which for me means it's what I actually use for my Claude work every day, and the pieces in this README all work. It's still a one-person project, so there are probably rough edges I haven't hit yet. If you find one, please [open an issue](https://github.com/pinkpixel-dev/clawsh/issues).
 
 It's Linux only. I haven't tried macOS, and Windows won't work. Images need kitty or Ghostty as your terminal.
 
@@ -119,6 +120,7 @@ Everything is behind a `ctrl+b` prefix, so Claude still gets all its own shortcu
 | `f` | Insert an `@` mention of a file in this workspace |
 | `o` | Open the menu |
 | `e` | Show or hide this tab's terminal drawer |
+| `W` | Start or stop phone access |
 | `;` | Move the keyboard between Claude and the drawer |
 | `q` | Quit |
 | `ctrl+b` | Send a literal `ctrl+b` to Claude |
@@ -344,6 +346,40 @@ Claw$h's own sidebar, tab bar, footer, and folder picker follow along too: a war
 CLAWSH_THEME=light clawsh
 ```
 
+## Phone access
+
+Sometimes I want to check on a tab or answer a quick question from the couch. Phone access lets your phone open the same Claw$h you have running at your desk. It's the same tabs and the same Claude processes, so it's basically a second screen and keyboard, not a separate session.
+
+It's early. I use it on an iPhone, both in Safari and as a home-screen web app. Android hasn't been tested yet.
+
+### What you need
+
+- [Tailscale](https://tailscale.com) running on the computer and the phone, both in the same tailnet
+- HTTPS certificates turned on for your tailnet, since Claw$h serves the phone over your machine's `*.ts.net` name
+
+Phone access only works through Tailscale. The server listens on `127.0.0.1` and Claw$h runs `tailscale serve` in front of it, so nothing is opened to your network or the internet. Without Tailscale it doesn't start, and the footer tells you why.
+
+### Pairing a phone
+
+1. Press `ctrl+b W`, or pick Start phone access from the `≡ Claw$h` menu. The address is copied to your clipboard and a popup shows a QR code and a short code like `K7QM-2XPV`.
+2. Scan the QR code with the phone. If you want a home-screen app, add it to the home screen first and type the short code into its pairing page instead, because home-screen apps don't share Safari's login.
+3. That's it. Next time phone access is on, the phone just opens the same address.
+
+Codes last 5 minutes and work once. In the popup, `r` switches to a watch-only code (that phone can see the screen but not type) and `n` makes a fresh one. Click `○ phone` in the footer to get the popup back. Paired phones in the menu lists every phone, and removing one cuts it off right away.
+
+### Using it
+
+The phone shows your workspaces at its own size. Whoever typed last sets the pane size, so Claude reflows when you go from the phone back to the desk. Tap the tab bar or the `☰` button to switch tabs and workspaces. Drag to scroll.
+
+There are two ways to type, switched with `Keys` on the key bar:
+
+- **Compose** (the default) is a normal text field, so autocorrect, swipe typing, and dictation all work. Send pastes the whole prompt and presses Enter.
+- **Keys** sends each key as you type it. Use it for menus, y/n prompts, and `ctrl+b` commands.
+
+The key bar also has `ctrl`, `^B`, `esc`, `tab`, `^C`, arrows, and Enter. Images from Claude stay on the desktop, the phone gets text only.
+
+The footer shows `● phone` while a phone is connected. Phone access turns itself off after 15 minutes with no phone connected, when you press `ctrl+b W` again, or when Claw$h quits. If the phone app goes to the background, it reconnects on its own when you open it again.
+
 ## Configuration
 
 ### Environment variables
@@ -355,6 +391,7 @@ CLAWSH_THEME=light clawsh
 | `CLAWSH_PROGRAM` | Run something other than `claude` in each tab (hooks and usage are turned off) |
 | `CLAWSH_IMAGES` | `direct` sends images as base64 instead of through shared memory |
 | `CLAWSH_SCOPES` | `off` starts tabs directly instead of in their own systemd scopes |
+| `CLAWSH_WEB_PORT` | Port for phone access, if `7878` is taken |
 | `CLAUDE_CONFIG_DIR` | Where to find your Claude Code login, if it's not in `~/.claude` |
 
 To try it with something other than Claude, set `CLAWSH_PROGRAM`:
@@ -368,6 +405,7 @@ CLAWSH_PROGRAM=bash clawsh
 | Path | What's in it |
 |---|---|
 | `~/.local/state/clawsh/session.json` | Your open workspaces and tabs, for restoring them (`$XDG_STATE_HOME` if set) |
+| `~/.local/state/clawsh/devices.json` | Paired phones. Only a hash of each phone's token is stored |
 | `~/.config/clawsh/templates/` | Workspace templates, one TOML file each (`$XDG_CONFIG_HOME` if set) |
 | `~/.config/clawsh/snippets/` | Global prompt snippets, one Markdown file each |
 | `<workspace>/.clawsh/snippets/` | Snippets for just that project |
