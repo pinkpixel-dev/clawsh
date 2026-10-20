@@ -6,6 +6,7 @@
 - Opening a menu while a phone was connected crashed Claw$h, because the phone's smaller screen didn't have the row the menu opened at. Menus now stay on whichever screen they're drawn on
 
 ### 🗂️ Tab bar
+- When the sidebar is hidden (on a phone, in a narrow window, or after `ctrl+b s`), a `☰` button at the left of the tab bar slides the sidebar over the pane. Tap a workspace or tab to switch, or tap anywhere else or press esc to close it. Claude doesn't resize while it's open
 - When the tabs don't fit, every tab except the active one shrinks to its number and status, so you can still see and click all of them. Before, the extra tabs just weren't drawn, and the active one could be among them
 - With even more tabs, the bar scrolls to keep the active tab in view, and `‹3` / `4›` show how many are hidden on each side. Click one to jump that way
 

@@ -88,6 +88,8 @@ pub enum Click {
     SearchBackground,
     /// The footer's phone access badge.
     WebLink,
+    /// The tab bar's sidebar button, shown while the sidebar is hidden.
+    Sidebar,
 }
 
 /// Clickable regions from the last frame (later entries sit on top), plus
@@ -168,6 +170,8 @@ pub enum Mode<'a> {
     Search(&'a Search),
     /// The phone access popup with its QR code.
     WebLink,
+    /// The sidebar drawn over the pane, while it's hidden otherwise.
+    Sidebar,
 }
 
 /// Phone access, while it's on.
@@ -223,7 +227,9 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
     if let Some(area) = areas.sidebar {
         sidebar::draw(frame, area, view, &mut hits);
     }
-    let rename_cursor = tabbar::draw(frame, areas.tabbar, view, &mut hits);
+    // With no room for the sidebar, the tab bar gets a button that opens it
+    // over the pane instead.
+    let rename_cursor = tabbar::draw(frame, areas.tabbar, view, &mut hits, areas.sidebar.is_none());
     let footer_cursor = footer::draw(frame, areas.footer, view, &mut hits);
     let cursor = match view.mode {
         Mode::Picker(p) => Some(picker::draw(frame, p, &mut hits)),
@@ -239,6 +245,13 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
         Mode::Search(search) => {
             let screen = frame.area();
             Some(search::draw(frame.buffer_mut(), screen, search, &mut hits))
+        }
+        Mode::Sidebar if areas.sidebar.is_none() => {
+            let top = areas.tabbar.bottom();
+            let rect = Rect::new(areas.tabbar.x, top, SIDEBAR_WIDTH.min(areas.tabbar.width), areas.footer.y.saturating_sub(top));
+            frame.render_widget(ratatui::widgets::Clear, rect);
+            sidebar::draw(frame, rect, view, &mut hits);
+            None
         }
         Mode::WebLink => {
             if let Some(web) = &view.web {

@@ -75,6 +75,8 @@ enum Mode {
     Search(Search),
     /// The phone access popup (`ctrl+b W`, or the footer badge).
     WebLink,
+    /// The sidebar over the pane, from the tab bar's button while it's hidden.
+    Sidebar,
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -288,6 +290,7 @@ fn build_view<'m>(
             Mode::Radar(selected) => ui::Mode::Radar(*selected),
             Mode::Search(search) => ui::Mode::Search(search),
             Mode::WebLink => ui::Mode::WebLink,
+            Mode::Sidebar => ui::Mode::Sidebar,
             Mode::Review => ui::Mode::Review(
                 spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),
             ),

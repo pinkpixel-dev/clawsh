@@ -125,6 +125,14 @@ impl App {
     pub(super) fn key(&mut self, k: KeyEvent) -> Result<()> {
         if k.kind == KeyEventKind::Press {
             self.notice = None;
+            // Any key closes the sidebar over the pane. Esc only closes it;
+            // anything else goes on to wherever it normally would.
+            if matches!(self.mode, Mode::Sidebar) {
+                self.mode = Mode::Normal;
+                if k.code == KeyCode::Esc {
+                    return Ok(());
+                }
+            }
         }
         match &mut self.mode {
             Mode::Normal => {
@@ -211,6 +219,8 @@ impl App {
             Mode::Menu(_) => self.menu_key(&k),
             Mode::Radar(_) => self.radar_key(&k),
             Mode::Search(_) => self.search_key(&k),
+            // Only releases get here; a press already closed it above.
+            Mode::Sidebar => Ok(()),
             Mode::WebLink => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -426,16 +436,23 @@ impl App {
             return Ok(());
         }
 
-        // The wheel over the sidebar's list scrolls it; the next draw clamps.
-        if let Some(list) = self.hits.sidebar_list
-            && list.contains(Position::new(m.column, m.row))
-        {
-            match m.kind {
-                MouseEventKind::ScrollUp => self.sidebar_scroll = self.sidebar_scroll.saturating_sub(SIDEBAR_WHEEL),
-                MouseEventKind::ScrollDown => self.sidebar_scroll += SIDEBAR_WHEEL,
-                _ => {}
+        // The sidebar over the pane: tapping a workspace or tab switches and
+        // closes it, any other click just closes it, and nothing reaches the
+        // pane underneath. The wheel still scrolls its list.
+        if matches!(self.mode, Mode::Sidebar) {
+            match hit {
+                Some(click @ (Click::Workspace(_) | Click::Tab(..) | Click::NewWorkspace)) if left_click => {
+                    self.mode = Mode::Normal;
+                    return self.click(click);
+                }
+                _ if left_click || right_click => self.mode = Mode::Normal,
+                _ => self.scroll_sidebar(&m),
             }
+            return Ok(());
         }
+
+        // The wheel over the sidebar's list scrolls it; the next draw clamps.
+        self.scroll_sidebar(&m);
 
         if let Some(click) = hit {
             if left_click {
@@ -454,6 +471,18 @@ impl App {
         Ok(())
     }
 
+    fn scroll_sidebar(&mut self, m: &MouseEvent) {
+        if let Some(list) = self.hits.sidebar_list
+            && list.contains(Position::new(m.column, m.row))
+        {
+            match m.kind {
+                MouseEventKind::ScrollUp => self.sidebar_scroll = self.sidebar_scroll.saturating_sub(SIDEBAR_WHEEL),
+                MouseEventKind::ScrollDown => self.sidebar_scroll += SIDEBAR_WHEEL,
+                _ => {}
+            }
+        }
+    }
+
     fn click(&mut self, click: Click) -> Result<()> {
         match click {
             Click::Workspace(i) => self.switch(|s| s.select_workspace(i)),
@@ -468,6 +497,10 @@ impl App {
                 Ok(())
             }
             Click::WebLink => self.show_web_link(false),
+            Click::Sidebar => {
+                self.mode = Mode::Sidebar;
+                Ok(())
+            }
             Click::Terminal => match self.active_id() {
                 Some(id) => self.toggle_terminal(id),
                 None => Ok(()),

@@ -8,10 +8,13 @@ use crate::theme;
 const MAX_TITLE: usize = 24;
 /// The terminal button at the right end.
 const TERMINAL: &str = " >_ ";
+/// Opens the sidebar over the pane, at the left end while it's hidden.
+const SIDEBAR: &str = " ☰ ";
 
 /// Draws the tabs. While a rename is open, the active tab shows the text
-/// being typed and this returns where the cursor goes.
-pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Option<Position> {
+/// being typed and this returns where the cursor goes. `sidebar_button` puts
+/// a button at the left end that opens the sidebar.
+pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits, sidebar_button: bool) -> Option<Position> {
     let buf = frame.buffer_mut();
     buf.set_style(area, theme::panel());
     let ws = view.workspaces.get(view.active)?;
@@ -30,8 +33,16 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
         buf.set_line(at, area.y, &Line::from(Span::styled(TERMINAL, style)), button);
         hits.push(Rect::new(at, area.y, button, 1), Click::Terminal);
     }
+    let mut start = area.x;
+    let button = SIDEBAR.chars().count() as u16;
+    if sidebar_button && area.width > button * 3 {
+        let style = if matches!(view.mode, Mode::Sidebar) { theme::accent() } else { theme::muted() };
+        buf.set_line(area.x, area.y, &Line::from(Span::styled(SIDEBAR, style)), button);
+        hits.push(Rect::new(area.x, area.y, button, 1), Click::Sidebar);
+        start += button;
+    }
     // Room for the tabs, leaving space for the "+" button.
-    let avail = right.saturating_sub(area.x).saturating_sub(3);
+    let avail = right.saturating_sub(start).saturating_sub(3);
     let editing = match view.mode {
         Mode::Rename(name) => Some(tail(name, MAX_TITLE)),
         _ => None,
@@ -63,7 +74,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
         tabs.iter().map(|t| (t.full.width() as u16, t.compact.width() as u16)).collect();
     let plan = plan(&widths, ws.active_tab, avail);
 
-    let mut x = area.x;
+    let mut x = start;
     if plan.hidden_left > 0 {
         let marker = format!("‹{}", plan.hidden_left);
         let w = marker.chars().count() as u16;
