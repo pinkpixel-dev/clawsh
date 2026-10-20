@@ -27,16 +27,27 @@ const POLL: Duration = Duration::from_millis(15);
 pub struct WebServer {
     addr: SocketAddr,
     token: String,
+    /// `<name>.ts.net:<port>` when `tailscale serve` fronts the server.
+    tailnet: Option<String>,
     stop: Arc<AtomicBool>,
 }
 
 impl WebServer {
-    pub fn start(addr: &str, tx: Sender<AppEvent>) -> Result<Self> {
+    /// `tailnet` is this machine's `*.ts.net` name, when `tailscale serve`
+    /// will proxy to the server. Pages from there count as our own origin.
+    pub fn start(addr: &str, tx: Sender<AppEvent>, tailnet: Option<&str>) -> Result<Self> {
         let listener = TcpListener::bind(addr).with_context(|| format!("couldn't listen on {addr}"))?;
         let addr = listener.local_addr()?;
         let token = random_token()?;
         let stop = Arc::new(AtomicBool::new(false));
-        let shared = Arc::new(Shared { token: token.clone(), stop: stop.clone(), tx, next_id: AtomicU64::new(1) });
+        let tailnet = tailnet.map(|name| format!("{name}:{}", addr.port()));
+        let shared = Arc::new(Shared {
+            token: token.clone(),
+            stop: stop.clone(),
+            tx,
+            next_id: AtomicU64::new(1),
+            tailnet: tailnet.clone(),
+        });
         thread::Builder::new().name("clawsh-web".into()).spawn(move || {
             for stream in listener.incoming() {
                 if shared.stop.load(Ordering::Relaxed) {
@@ -51,12 +62,20 @@ impl WebServer {
                     });
             }
         })?;
-        Ok(Self { addr, token, stop })
+        Ok(Self { addr, token, tailnet, stop })
     }
 
-    /// The address to open on the phone, token included.
-    pub fn url(&self) -> String {
-        format!("http://{}/?t={}", self.addr, self.token)
+    pub fn port(&self) -> u16 {
+        self.addr.port()
+    }
+
+    /// The address to open on the phone, token included: the tailnet's HTTPS
+    /// one when `serve` is up, otherwise the address we listen on.
+    pub fn url(&self, serving: bool) -> String {
+        match (&self.tailnet, serving) {
+            (Some(host), true) => format!("https://{host}/?t={}", self.token),
+            _ => format!("http://{}/?t={}", self.addr, self.token),
+        }
     }
 }
 
@@ -74,6 +93,7 @@ struct Shared {
     stop: Arc<AtomicBool>,
     tx: Sender<AppEvent>,
     next_id: AtomicU64,
+    tailnet: Option<String>,
 }
 
 /// What we need from a request head.
@@ -95,11 +115,7 @@ fn serve(mut stream: TcpStream, shared: &Shared) -> Result<()> {
         let token_ok = query_param(&req.query, "t").is_some_and(|t| same(t, &shared.token));
         // Other programs on this computer can reach localhost too, so a page
         // from somewhere else must not be able to open the socket.
-        let origin_ok = match (&req.origin, &req.host) {
-            (Some(origin), Some(host)) => origin.split_once("://").is_some_and(|(_, h)| h == host),
-            (None, _) => true,
-            _ => false,
-        };
+        let origin_ok = origin_allowed(req.origin.as_deref(), req.host.as_deref(), shared.tailnet.as_deref());
         return match (req.websocket_key, token_ok && origin_ok) {
             (Some(key), true) => run_socket(stream, &key, rest, shared),
             (None, _) => respond(&mut stream, "400 Bad Request", "text/plain", b"websocket only"),
@@ -157,6 +173,19 @@ fn parse(head: &[u8]) -> Option<Request> {
         origin: header("origin"),
         host: header("host"),
     })
+}
+
+/// A page from somewhere else must not be able to open the socket. The
+/// origin has to match the `Host` header, or our tailnet name, since a proxy
+/// may rewrite `Host` to the local address.
+fn origin_allowed(origin: Option<&str>, host: Option<&str>, tailnet: Option<&str>) -> bool {
+    let Some(origin) = origin else {
+        return true;
+    };
+    let Some((_, from)) = origin.split_once("://") else {
+        return false;
+    };
+    host == Some(from) || tailnet == Some(from)
 }
 
 fn query_param<'q>(query: &'q str, name: &str) -> Option<&'q str> {
@@ -248,6 +277,18 @@ mod tests {
         let req = parse(b"GET / HTTP/1.1\r\nHost: x\r\nSec-WebSocket-Key: k\r\n\r\n").unwrap();
         assert!(req.websocket_key.is_none());
         assert!(parse(b"POST / HTTP/1.1\r\nHost: x\r\n\r\n").is_none());
+    }
+
+    #[test]
+    fn origins_must_be_ours() {
+        let host = Some("127.0.0.1:7878");
+        assert!(origin_allowed(None, host, None));
+        assert!(origin_allowed(Some("http://127.0.0.1:7878"), host, None));
+        assert!(!origin_allowed(Some("http://evil.example"), host, None));
+        let ts = Some("box.tail1.ts.net:7878");
+        assert!(origin_allowed(Some("https://box.tail1.ts.net:7878"), host, ts));
+        assert!(!origin_allowed(Some("https://other.tail1.ts.net:7878"), host, ts));
+        assert!(!origin_allowed(Some("garbage"), host, ts));
     }
 
     #[test]

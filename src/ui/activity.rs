@@ -124,6 +124,7 @@ mod tests {
             by_activity,
             terminal: None,
             divider: None,
+            web: None,
         }
     }
 

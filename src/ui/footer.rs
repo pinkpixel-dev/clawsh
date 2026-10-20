@@ -14,6 +14,17 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
     let button = Span::styled(" ≡ Claw$h ", theme::accent());
     hits.push(Rect::new(area.x, area.y, (button.width() as u16).min(area.width), 1), Click::OpenMenu);
     let mut left = vec![button];
+    // Phone access is on: a dot that fills in while a phone is connected.
+    if let Some(web) = &view.web {
+        let badge = if web.connected {
+            Span::styled("● phone ", theme::accent())
+        } else {
+            Span::styled("○ phone ", theme::muted())
+        };
+        let x = area.x + left[0].width() as u16;
+        hits.push(Rect::new(x, area.y, (badge.width() as u16).min(area.right().saturating_sub(x)), 1), Click::WebLink);
+        left.push(badge);
+    }
     let mut cursor = None;
     let field = match view.mode {
         Mode::SaveTemplate(name) => Some(("save template as ", name)),
@@ -58,6 +69,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
             ("f", "file"),
             ("g", "worktrees"),
             ("e", "terminal"),
+            ("W", "phone"),
             (";", "focus"),
             ("o", "menu"),
             ("s", "sidebar"),
@@ -77,6 +89,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &View, hits: &mut Hits) -> Opti
         Mode::RenameWorkspace(_) => &[("enter", "save"), ("empty", "folder name"), ("esc", "cancel")],
         Mode::Menu(_) => &[("enter", "choose"), ("↑↓", "move"), ("esc", "close")],
         Mode::Radar(_) => &[("enter", "jump"), ("r", "review turn"), ("↑↓", "move"), ("esc", "close")],
+        Mode::WebLink => &[("any key", "close")],
         Mode::Search(s) if s.stale() => &[("enter", "search"), ("↑↓", "move"), ("esc", "close")],
         Mode::Search(_) => &[("enter", "resume"), ("↑↓", "move"), ("esc", "close")],
         Mode::Review(true) => &[("enter", "save"), ("empty", "delete"), ("esc", "cancel")],

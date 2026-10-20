@@ -71,6 +71,8 @@ enum Mode {
     Radar(Option<usize>),
     /// Searching saved conversations (`ctrl+b /`).
     Search(Search),
+    /// The phone access popup (`ctrl+b W`, or the footer badge).
+    WebLink,
 }
 
 /// How often to redraw while a tab is working, so its spinner moves.
@@ -200,6 +202,7 @@ pub fn run(term: &mut DefaultTerminal, launch: Launch, colors: HostColors) -> Re
             app.draw(term)?;
             app.wait(&rx)?;
             app.flush_pane_output()?;
+            app.web_tick()?;
             app.save_session();
         }
         Ok(())
@@ -234,6 +237,8 @@ fn build_view<'m>(
         // The drawer parts are filled in by `draw`, which knows the layout.
         terminal: None,
         divider: None,
+        // Filled in by `draw` too, from the running server.
+        web: None,
         notice,
         notifications,
         by_activity,
@@ -274,6 +279,7 @@ fn build_view<'m>(
             Mode::Picker(p) => ui::Mode::Picker(p),
             Mode::Radar(selected) => ui::Mode::Radar(*selected),
             Mode::Search(search) => ui::Mode::Search(search),
+            Mode::WebLink => ui::Mode::WebLink,
             Mode::Review => ui::Mode::Review(
                 spaces.active_tab().and_then(|p| p.review.as_ref()).is_some_and(|r| r.draft.is_some()),
             ),
@@ -483,6 +489,7 @@ impl App {
             (self.notifications, self.by_activity),
             self.notice.as_deref(),
         );
+        view.web = self.web_view();
         let images = &self.images;
         let spaces = &mut self.spaces;
         let normal = matches!(self.mode, Mode::Normal);

@@ -7,6 +7,7 @@ mod assets;
 #[allow(dead_code)]
 pub mod protocol;
 mod server;
+mod tailscale;
 
 use std::sync::mpsc::Sender;
 
@@ -20,6 +21,7 @@ use ratatui::Terminal;
 use crate::host_colors::HostColors;
 use protocol::{CellDiff, FromPhone, Key, MouseKind, ToPhone, color_code, modifier_code};
 pub use server::{DEFAULT_ADDR, WebServer};
+pub use tailscale::{Serve, tailnet_name};
 
 /// What the web threads tell the main loop.
 #[derive(Debug)]

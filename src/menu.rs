@@ -50,6 +50,8 @@ pub enum Choice {
     ToggleNotifications,
     ToggleSidebar,
     ToggleWeb,
+    /// Opens the phone access popup again.
+    ShowWebLink,
     Quit,
 }
 
@@ -194,8 +196,11 @@ impl Menu {
                 .key("m"),
             Item::new(if s.sidebar { "Hide sidebar" } else { "Show sidebar" }, Choice::ToggleSidebar).key("s"),
             Item::new(if s.web { "Stop phone access" } else { "Start phone access" }, Choice::ToggleWeb).key("W"),
-            Item::new("Quit", Choice::Quit).key("q").divider(),
         ]);
+        if s.web {
+            items.push(Item::new("Show phone link", Choice::ShowWebLink));
+        }
+        items.push(Item::new("Quit", Choice::Quit).key("q").divider());
         Self::new(anchor, items)
     }
 

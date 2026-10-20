@@ -161,6 +161,7 @@ impl App {
             Choice::ToggleNotifications => self.notifications = !self.notifications,
             Choice::ToggleSidebar => self.show_sidebar = !self.show_sidebar,
             Choice::ToggleWeb => self.toggle_web()?,
+            Choice::ShowWebLink => self.mode = Mode::WebLink,
             Choice::Quit => self.quit = true,
         }
         Ok(())

@@ -182,6 +182,7 @@ mod tests {
             by_activity: false,
             terminal: None,
             divider: None,
+            web: None,
         }
     }
 

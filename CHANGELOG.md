@@ -9,7 +9,10 @@
 - Compose mode (the default) gives the phone a real text field, so autocorrect and dictation work. Send or Return pastes the whole prompt and presses Enter. Keys mode sends every key as you type, for menus and `ctrl+b` commands
 - The key bar is two rows that fit a phone's width, with a Compose/Keys toggle and an Enter key
 - Release binaries and the crates.io package now include the phone client
-- It only listens on `127.0.0.1` for now; Tailscale and QR pairing come later
+- Starting it shows a QR code of the link, so you can just scan it with your phone
+- With Tailscale running, it also starts `tailscale serve` so your phone gets an HTTPS link that works anywhere on your tailnet. It stops along with phone access, even if Claw$h crashes. Without Tailscale it stays on `127.0.0.1` and the popup says why
+- `○ phone` in the footer shows it's on and turns into `● phone` while a phone is connected. Click it to see the QR code again
+- It turns itself off after 15 minutes with no phone connected
 
 ## 1.2.1 - October 20, 2026
 

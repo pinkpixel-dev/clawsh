@@ -211,6 +211,13 @@ impl App {
             Mode::Menu(_) => self.menu_key(&k),
             Mode::Radar(_) => self.radar_key(&k),
             Mode::Search(_) => self.search_key(&k),
+            // Any key closes the popup; it's only there to be read or scanned.
+            Mode::WebLink => {
+                if k.kind != KeyEventKind::Release {
+                    self.mode = Mode::Normal;
+                }
+                Ok(())
+            }
             Mode::SaveTemplate(text) => {
                 if k.kind == KeyEventKind::Release {
                     return Ok(());
@@ -376,6 +383,12 @@ impl App {
         if matches!(self.mode, Mode::Search(_)) {
             return self.search_mouse(&m, hit);
         }
+        if matches!(self.mode, Mode::WebLink) {
+            if left_click || right_click {
+                self.mode = Mode::Normal;
+            }
+            return Ok(());
+        }
 
         // While the divider is held, the pointer only resizes.
         if self.resizing {
@@ -451,6 +464,10 @@ impl App {
                 self.open_main_menu();
                 Ok(())
             }
+            Click::WebLink => {
+                self.mode = Mode::WebLink;
+                Ok(())
+            }
             Click::Terminal => match self.active_id() {
                 Some(id) => self.toggle_terminal(id),
                 None => Ok(()),
@@ -498,7 +515,7 @@ impl App {
                 Ok(())
             }
             // Nothing to type into.
-            Mode::Radar(_) => Ok(()),
+            Mode::Radar(_) | Mode::WebLink => Ok(()),
             _ => match self.focused_pane_mut() {
                 Some(pane) => pane.paste(text),
                 None => Ok(()),

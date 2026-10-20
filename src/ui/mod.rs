@@ -1,5 +1,5 @@
 //! Claw$h's own chrome: sidebar, tab bar, footer, the folder picker, the
-//! radar, conversation search, and pop-up menus.
+//! radar, conversation search, the phone access popup, and pop-up menus.
 //! Pane contents are drawn by the panes themselves.
 
 mod activity;
@@ -13,6 +13,7 @@ mod search;
 mod sidebar;
 mod tabbar;
 mod usage;
+mod weblink;
 
 use chrono::{DateTime, Utc};
 use ratatui::Frame;
@@ -85,6 +86,8 @@ pub enum Click {
     SearchItem(usize),
     /// Inside the search, but not on a result.
     SearchBackground,
+    /// The footer's phone access badge.
+    WebLink,
 }
 
 /// Clickable regions from the last frame (later entries sit on top), plus
@@ -163,6 +166,18 @@ pub enum Mode<'a> {
     Radar(Option<usize>),
     /// Conversation search (`ctrl+b /`).
     Search(&'a Search),
+    /// The phone access popup with its QR code.
+    WebLink,
+}
+
+/// Phone access, while it's on.
+pub struct WebView {
+    /// The link to open on the phone, token included.
+    pub url: String,
+    /// Why it's localhost only, when Tailscale couldn't be used.
+    pub note: Option<String>,
+    /// A phone is connected right now.
+    pub connected: bool,
 }
 
 pub struct View<'a> {
@@ -190,6 +205,7 @@ pub struct View<'a> {
     pub terminal: Option<bool>,
     /// The divider, while the active tab's drawer is shown.
     pub divider: Option<drawer::DividerView>,
+    pub web: Option<WebView>,
 }
 
 /// Draws everything except the pane. Returns the click map and, while the
@@ -218,6 +234,13 @@ pub fn draw_chrome(frame: &mut Frame, areas: &Areas, view: &View) -> (Hits, Opti
         Mode::Search(search) => {
             let screen = frame.area();
             Some(search::draw(frame.buffer_mut(), screen, search, &mut hits))
+        }
+        Mode::WebLink => {
+            if let Some(web) = &view.web {
+                let screen = frame.area();
+                weblink::draw(frame.buffer_mut(), screen, web);
+            }
+            None
         }
         _ => rename_cursor.or(footer_cursor),
     };
