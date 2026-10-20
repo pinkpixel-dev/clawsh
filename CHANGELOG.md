@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.1 - In progress
+## 1.2.1 - October 20, 2026
 
 ### 🐛 Fixes
 - Each tab and drawer now starts in its own systemd scope, so when systemd-oomd steps in it kills only the tab that ran out of control instead of the whole terminal window with every workspace in it
