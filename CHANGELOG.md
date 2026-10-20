@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1 - In progress
+
+### 🐛 Fixes
+- Each tab and drawer now starts in its own systemd scope, so when systemd-oomd steps in it kills only the tab that ran out of control instead of the whole terminal window with every workspace in it
+- `CLAWSH_SCOPES=off` turns this off, and Claw$h starts tabs directly on its own when `systemd-run` or a user systemd session isn't available
+
 ## 1.2.0 - October 19, 2026
 
 ### 🎛️ Command palette

@@ -354,6 +354,7 @@ CLAWSH_THEME=light clawsh
 | `CLAWSH_THEME` | `light` or `dark`, to pin Claw$h's palette instead of following the terminal |
 | `CLAWSH_PROGRAM` | Run something other than `claude` in each tab (hooks and usage are turned off) |
 | `CLAWSH_IMAGES` | `direct` sends images as base64 instead of through shared memory |
+| `CLAWSH_SCOPES` | `off` starts tabs directly instead of in their own systemd scopes |
 | `CLAUDE_CONFIG_DIR` | Where to find your Claude Code login, if it's not in `~/.claude` |
 
 To try it with something other than Claude, set `CLAWSH_PROGRAM`:
@@ -385,6 +386,14 @@ This works through Claude Code hooks. Claw$h starts each Claude tab with `claude
 ```bash
 CLAWSH_IMAGES=direct clawsh
 ```
+
+**The whole terminal window disappeared, tabs and all.** That's usually systemd-oomd, not a crash. When RAM and swap both get close to full, it kills the biggest cgroup it can find. To keep that from taking everything down, Claw$h starts each tab and drawer in its own systemd scope (`clawsh-<pid>-<tab>.scope`), so a tab that runs something huge gets killed alone and the rest keep going. You can check what happened with:
+
+```bash
+journalctl --since today | grep systemd-oomd
+```
+
+Scopes need `systemd-run` and a user systemd session. Without those, tabs start directly like they used to, and `CLAWSH_SCOPES=off` does the same on purpose.
 
 **`cargo install cargo-binstall` says it needs a newer rustc.** That's cargo-binstall's own requirement, not Claw$h's. Update Rust with `rustup update stable`, or install the older cargo-binstall it suggests:
 

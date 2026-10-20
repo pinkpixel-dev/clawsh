@@ -3,6 +3,7 @@ mod input;
 mod png;
 mod copy;
 pub(crate) mod pty;
+mod scope;
 
 use std::path::Path;
 use std::sync::mpsc::Sender;

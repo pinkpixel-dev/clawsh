@@ -66,8 +66,11 @@ impl Pty {
             .openpty(size)
             .context("could not open a pty")?;
 
-        let mut cmd = CommandBuilder::new(program);
-        cmd.args(args);
+        // Its own systemd scope, so the OOM killer can take out one tab
+        // instead of the whole window.
+        let (exe, full_args) = super::scope::wrap(id, program, args);
+        let mut cmd = CommandBuilder::new(exe);
+        cmd.args(full_args);
         cmd.cwd(cwd);
         for key in HOST_ENV {
             cmd.env_remove(key);
