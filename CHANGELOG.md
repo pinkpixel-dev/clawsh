@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 🗂️ Tab bar
+- When the tabs don't fit, every tab except the active one shrinks to its number and status, so you can still see and click all of them. Before, the extra tabs just weren't drawn, and the active one could be among them
+- With even more tabs, the bar scrolls to keep the active tab in view, and `‹3` / `4›` show how many are hidden on each side. Click one to jump that way
+
 ### 📱 Phone access (early)
 - `ctrl+b W` (or Start phone access in the main menu) starts a small server inside the running Claw$h and copies a link with a one-time token. Pressing it again stops it
 - The phone client in `web/` shows the same session at the phone's own size and sends keys, taps, scrolling, and pastes back
